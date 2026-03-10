@@ -26,6 +26,7 @@ class ConnectorUpdate(BaseModel):
 class ConnectorResponse(ConnectorBase):
     id: uuid.UUID
     tenant_id: uuid.UUID
+    initialization_status: str
     is_active: bool
     created_at: datetime
     updated_at: datetime

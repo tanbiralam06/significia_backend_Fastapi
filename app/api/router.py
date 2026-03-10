@@ -1,3 +1,4 @@
+from fastapi import APIRouter
 from app.api.v1 import auth_routes, admin_routes, connector_routes
 
 api_router = APIRouter()
