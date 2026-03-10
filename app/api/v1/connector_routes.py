@@ -69,3 +69,18 @@ def test_connection(
     if not success:
         return {"status": "error", "message": "Connection failed. Please check credentials and host accessibility."}
     return {"status": "success", "message": "Connection established successfully."}
+
+@router.post("/{connector_id}/initialize")
+def initialize_database(
+    connector_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.services.provisioner_service import ProvisionerService
+    success = ProvisionerService.initialize_database(db, connector_id, current_user.tenant_id)
+    if not success:
+        raise HTTPException(
+            status_code=400, 
+            detail="Database initialization failed. Ensure the connection is valid and the user has permission to create tables."
+        )
+    return {"status": "success", "message": "Database initialized with core tables."}

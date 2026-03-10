@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from datetime import datetime
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,6 +28,10 @@ class Connector(Base):
     encrypted_password: Mapped[str] = mapped_column(Text, nullable=False)
     
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    
+    # Initialization status
+    initialization_status: Mapped[str] = mapped_column(String(20), default="PENDING")  # PENDING, INITIALIZING, READY, FAILED
+    initialized_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
