@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import String, Boolean, DateTime, Integer, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, INET
 
 from app.database.base import Base
@@ -13,6 +13,12 @@ class User(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+
+    tenant = relationship("Tenant", lazy="joined")
+
+    @property
+    def company_name(self) -> str:
+        return self.tenant.name if self.tenant else ""
 
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     email_normalized: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
