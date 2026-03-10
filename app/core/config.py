@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     REDIS_PORT: str = "6379"
 
     SECRET_KEY: str = "your-super-secret-key-change-in-production"
+    ENCRYPTION_KEY: str = "change-this-to-a-secure-32-byte-base64-key-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
