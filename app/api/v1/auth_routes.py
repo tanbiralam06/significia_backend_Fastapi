@@ -11,12 +11,15 @@ auth_service = AuthService()
 
 @router.post("/register", response_model=UserResponse, status_code=201)
 def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
+    print(f"--- REACHED REGISTER ROUTE FOR: {request.email} ---")
     user = auth_service.register_user(db, request)
+    print("--- REGISTER ROUTE COMPLETED ---")
     return user
 
 @router.post("/login", response_model=TokenResponse)
 def login(request: UserLoginRequest, http_request: Request, db: Session = Depends(get_db)):
-    ip_address = http_request.client.host if http_request.client else "127.0.0.1"
+    client_host = http_request.client.host if http_request.client else "127.0.0.1"
+    ip_address = "127.0.0.1" if client_host == "testclient" else client_host
     user_agent = http_request.headers.get("user-agent", "")
     return auth_service.authenticate_user(db, request, request_ip=ip_address, user_agent=user_agent)
 
