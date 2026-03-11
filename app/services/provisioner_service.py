@@ -58,9 +58,9 @@ class ProvisionerService:
         # 0. Ensure UUID extension exists
         engine.execute_query("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
 
-        # Create Customers Table
-        create_customers = """
-        CREATE TABLE IF NOT EXISTS significia_core.customers (
+        # Create Clients Table
+        create_clients = """
+        CREATE TABLE IF NOT EXISTS significia_core.clients (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name VARCHAR(255) NOT NULL,
             email VARCHAR(255),
@@ -71,7 +71,7 @@ class ProvisionerService:
             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         """
-        engine.execute_query(create_customers)
+        engine.execute_query(create_clients)
         
         # Create IA Master Table
         create_ia_master = """

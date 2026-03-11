@@ -32,6 +32,9 @@ class IAMaster(Base):
     ia_signature_path: Mapped[Optional[str]] = mapped_column(String(512))
     ia_logo_path: Mapped[Optional[str]] = mapped_column(String(512))
     
+    max_client_permit: Mapped[int] = mapped_column(default=10, server_default="10")
+    current_client_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

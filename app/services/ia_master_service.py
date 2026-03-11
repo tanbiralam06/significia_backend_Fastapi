@@ -132,6 +132,25 @@ class IAMasterService:
             await self.sign_file_urls(db_ia, db)
         return db_ia
 
+    def update_client_permit(self, db: Session, ia_id: uuid.UUID, max_permit: int):
+        db_ia = self.ia_repo.get_by_id(db, ia_id)
+        if not db_ia:
+            raise ValueError("IA record not found")
+            
+        if max_permit < db_ia.current_client_count:
+            raise ValueError(f"Cannot set max permit below current count ({db_ia.current_client_count})")
+            
+        old_permit = db_ia.max_client_permit
+        db_ia.max_client_permit = max_permit
+        db.commit()
+        db.refresh(db_ia)
+        
+        self.audit_repo.log_event(
+            db, "UPDATE", "ia_master", str(db_ia.id), 
+            f"Updated max client permit from {old_permit} to {max_permit}"
+        )
+        return db_ia
+
     def generate_pdf(self, db: Session, ia_id: uuid.UUID) -> Tuple[bytes, str]:
         db_ia = self.ia_repo.get_by_id(db, ia_id)
         if not db_ia:

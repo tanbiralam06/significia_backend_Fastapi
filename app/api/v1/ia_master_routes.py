@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.database.remote_session import get_remote_session
-from app.schemas.ia_master import IAMasterRead, IANumberValidationResponse
+from app.schemas.ia_master import IAMasterRead, IANumberValidationResponse, IAMasterPermitUpdate
 from app.services.ia_master_service import IAMasterService
 from app.models.user import User
 
@@ -108,6 +108,20 @@ async def get_latest_ia(
     current_user: User = Depends(get_current_user)
 ):
     return await ia_service.get_latest_ia(db)
+
+@router.patch("/{ia_id}/client-permit", response_model=IAMasterRead)
+async def update_client_permit(
+    ia_id: uuid.UUID,
+    permit_update: IAMasterPermitUpdate,
+    db: Session = Depends(get_remote_session),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        db_ia = ia_service.update_client_permit(db, ia_id, permit_update.max_client_permit)
+        await ia_service.sign_file_urls(db_ia, db)
+        return db_ia
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{ia_id}/pdf")
 def download_ia_pdf(

@@ -42,11 +42,16 @@ class IAMasterBase(BaseModel):
 class IAMasterCreate(IAMasterBase):
     pass
 
+class IAMasterPermitUpdate(BaseModel):
+    max_client_permit: int = Field(..., gt=0, description="The new maximum number of allowed clients.")
+
 class IAMasterRead(IAMasterBase):
     id: UUID
     ia_certificate_path: Optional[str] = None
     ia_signature_path: Optional[str] = None
     ia_logo_path: Optional[str] = None
+    max_client_permit: int
+    current_client_count: int
     created_at: datetime
     updated_at: datetime
     employees: List[EmployeeRead] = []

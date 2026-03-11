@@ -3,24 +3,24 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 import uuid
 from datetime import datetime
 
-class CustomerBase(BaseModel):
+class ClientBase(BaseModel):
     name: str
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     status: str = "active"
 
-class CustomerCreate(CustomerBase):
+class ClientCreate(ClientBase):
     pass
 
-class CustomerUpdate(BaseModel):
+class ClientUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     status: Optional[str] = None
 
-class CustomerResponse(CustomerBase):
+class ClientResponse(ClientBase):
     id: uuid.UUID
     created_at: datetime
     updated_at: datetime
