@@ -62,16 +62,90 @@ class ProvisionerService:
         create_clients = """
         CREATE TABLE IF NOT EXISTS significia_core.clients (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name VARCHAR(255) NOT NULL,
-            email VARCHAR(255),
-            phone VARCHAR(50),
-            address TEXT,
-            status VARCHAR(50) DEFAULT 'active',
+            email VARCHAR(255) UNIQUE NOT NULL,
+            email_normalized VARCHAR(255) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE,
+            failed_login_attempts INTEGER DEFAULT 0,
+            last_login_at TIMESTAMP WITHOUT TIME ZONE,
+            
+            client_code VARCHAR(50) UNIQUE NOT NULL,
+            client_name VARCHAR(255) NOT NULL,
+            date_of_birth DATE NOT NULL,
+            pan_number VARCHAR(20) UNIQUE NOT NULL,
+            phone_number VARCHAR(50) NOT NULL,
+            address TEXT NOT NULL,
+            occupation VARCHAR(100) NOT NULL,
+            gender VARCHAR(20) NOT NULL,
+            marital_status VARCHAR(50) NOT NULL,
+            nationality VARCHAR(100) NOT NULL,
+            residential_status VARCHAR(100) NOT NULL,
+            tax_residency VARCHAR(100) NOT NULL,
+            pep_status VARCHAR(100) NOT NULL,
+            father_name VARCHAR(255) NOT NULL,
+            mother_name VARCHAR(255) NOT NULL,
+            spouse_name VARCHAR(255),
+            
+            annual_income DOUBLE PRECISION NOT NULL,
+            net_worth DOUBLE PRECISION NOT NULL,
+            income_source VARCHAR(100) NOT NULL,
+            fatca_compliance VARCHAR(100) NOT NULL,
+            existing_portfolio_value DOUBLE PRECISION DEFAULT 0.0,
+            existing_portfolio_composition TEXT,
+            
+            bank_account_number VARCHAR(50) NOT NULL,
+            bank_name VARCHAR(255) NOT NULL,
+            bank_branch VARCHAR(255) NOT NULL,
+            ifsc_code VARCHAR(20) NOT NULL,
+            demat_account_number VARCHAR(100),
+            trading_account_number VARCHAR(100),
+            
+            risk_profile VARCHAR(100) NOT NULL,
+            investment_experience VARCHAR(100) NOT NULL,
+            investment_objectives TEXT NOT NULL,
+            investment_horizon VARCHAR(100) NOT NULL,
+            liquidity_needs VARCHAR(100) NOT NULL,
+            
+            advisor_name VARCHAR(255) NOT NULL,
+            nominee_name VARCHAR(255),
+            nominee_relationship VARCHAR(100),
+            declaration_signed BOOLEAN DEFAULT FALSE,
+            declaration_date DATE,
+            client_signature_path VARCHAR(512),
+            advisor_signature_path VARCHAR(512),
+            
             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE INDEX IF NOT EXISTS idx_clients_email_normalized ON significia_core.clients(email_normalized);
         """
         engine.execute_query(create_clients)
+
+        # Create Client Documents Table
+        create_client_docs = """
+        CREATE TABLE IF NOT EXISTS significia_core.client_documents (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+            document_type VARCHAR(100) NOT NULL,
+            file_path VARCHAR(512) NOT NULL,
+            uploaded_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        engine.execute_query(create_client_docs)
+
+        # Create Client Audit Trail Table
+        create_client_audit = """
+        CREATE TABLE IF NOT EXISTS significia_core.client_audit_trail (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+            action_type VARCHAR(50) NOT NULL,
+            changes JSONB,
+            user_ip VARCHAR(45),
+            user_agent TEXT,
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        """
+        engine.execute_query(create_client_audit)
         
         # Create IA Master Table
         create_ia_master = """
@@ -95,6 +169,8 @@ class ProvisionerService:
             ia_certificate_path VARCHAR(512),
             ia_signature_path VARCHAR(512),
             ia_logo_path VARCHAR(512),
+            max_client_permit INTEGER DEFAULT 10,
+            current_client_count INTEGER DEFAULT 0,
             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );

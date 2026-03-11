@@ -26,7 +26,11 @@ class AuthService:
             raise HTTPException(status_code=400, detail="Email already registered")
 
         # Create Tenant
-        tenant = self.tenant_repo.create(db, name=request.company_name)
+        tenant = self.tenant_repo.create(
+            db=db, 
+            name=request.company_name, 
+            subdomain=request.subdomain
+        )
 
         # Create User
         user = User(
@@ -68,7 +72,14 @@ class AuthService:
         user.last_login_ip = request_ip
         self.user_repo.update(db, user)
 
-        return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+        tenant = self.tenant_repo.get_by_id(db, user.tenant_id)
+        subdomain = tenant.subdomain if tenant else None
+
+        return TokenResponse(
+            access_token=access_token, 
+            refresh_token=refresh_token,
+            subdomain=subdomain
+        )
 
     def refresh_access_token(self, db: Session, refresh_token: str) -> TokenResponse:
         rt_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
@@ -87,4 +98,11 @@ class AuthService:
 
         self.session_repo.create_session(db, user.id, user.tenant_id, new_access_hash, device=None, ip_address=None, expires_at=at_expires)
         
-        return TokenResponse(access_token=new_access_token, refresh_token=refresh_token)
+        tenant = self.tenant_repo.get_by_id(db, user.tenant_id)
+        subdomain = tenant.subdomain if tenant else None
+
+        return TokenResponse(
+            access_token=new_access_token, 
+            refresh_token=refresh_token,
+            subdomain=subdomain
+        )

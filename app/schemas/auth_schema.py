@@ -6,6 +6,7 @@ class UserRegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     company_name: str
+    subdomain: Optional[str] = None
 
 class UserLoginRequest(BaseModel):
     email: EmailStr
@@ -15,6 +16,7 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    subdomain: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: uuid.UUID
