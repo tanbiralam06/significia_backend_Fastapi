@@ -45,3 +45,5 @@ flower>=2.0.0
 fpdf2>=2.7.8
 python-multipart>=0.0.9
 werkzeug>=3.0.1
+
+pydantic[email]
