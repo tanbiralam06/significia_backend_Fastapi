@@ -1,0 +1,11 @@
+Connecting to: localhost:5432/ehsaara
+Raw SQL count: 1
+Raw SQL example: (UUID('956ec769-5b09-4dc4-9188-2cf4221c265f'), 'Tohid Alam')
+'clients' table found
+COLUMNS IN 'clients': ['id', 'email', 'email_normalized', 'password_hash', 'is_active', 'failed_login_attempts', 'last_login_at', 'client_code', 'client_name', 'date_of_birth', 'pan_number', 'phone_number', 'address', 'occupation', 'gender', 'marital_status', 'nationality', 'residential_status', 'tax_residency', 'pep_status', 'father_name', 'mother_name', 'spouse_name', 'annual_income', 'net_worth', 'income_source', 'fatca_compliance', 'existing_portfolio_value', 'existing_portfolio_composition', 'bank_account_number', 'bank_name', 'bank_branch', 'ifsc_code', 'demat_account_number', 'trading_account_number', 'risk_profile', 'investment_experience', 'investment_objectives', 'investment_horizon', 'liquidity_needs', 'advisor_name', 'nominee_name', 'nominee_relationship', 'declaration_signed', 'declaration_date', 'client_signature_path', 'advisor_signature_path', 'created_at', 'updated_at', 'deleted_at', 'assigned_employee_id']
+Querying via Session and ClientProfile model...
+Model query count: 1
+Calling ClientService.list_clients(session)...
+Service returned 1 clients.
+Example from service: ID=956ec769-5b09-4dc4-9188-2cf4221c265f, Name=Tohid Alam
+Serialization SUCCESSful

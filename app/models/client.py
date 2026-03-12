@@ -75,6 +75,12 @@ class ClientProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Assignment
+    assigned_employee_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("employee_details.id", ondelete="SET NULL"), nullable=True
+    )
+    assigned_employee: Mapped[Optional["EmployeeDetails"]] = relationship("EmployeeDetails")
+
     # Relationships
     documents: Mapped[list["ClientDocument"]] = relationship(
         "ClientDocument", back_populates="client", cascade="all, delete-orphan"

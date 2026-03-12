@@ -54,6 +54,7 @@ class ClientBase(BaseModel):
     nominee_relationship: Optional[str] = None
     declaration_signed: bool = False
     declaration_date: Optional[date] = None
+    assigned_employee_id: Optional[uuid.UUID] = None
 
 class ClientCreate(ClientBase):
     password: str
@@ -66,6 +67,7 @@ class ClientUpdate(BaseModel):
     address: Optional[str] = None
     annual_income: Optional[float] = None
     net_worth: Optional[float] = None
+    assigned_employee_id: Optional[uuid.UUID] = None
 
 class ClientResponse(ClientBase):
     id: uuid.UUID
@@ -73,6 +75,7 @@ class ClientResponse(ClientBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    assigned_employee_id: Optional[uuid.UUID] = None
     
     client_signature_path: Optional[str] = None
     advisor_signature_path: Optional[str] = None
