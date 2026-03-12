@@ -12,9 +12,12 @@ class StorageService:
         """
         Retrieves the active storage connector from the provided DB session (Client DB).
         """
-        connector_record = db.query(StorageConnector).filter(
-            StorageConnector.is_active == True
-        ).first()
+        try:
+            connector_record = db.query(StorageConnector).filter(
+                StorageConnector.is_active == True
+            ).first()
+        except Exception:
+            return None
 
         if not connector_record:
             return None

@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 import uuid
 from datetime import datetime, date
 
@@ -50,15 +50,27 @@ class ClientBase(BaseModel):
     liquidity_needs: str
     
     advisor_name: str
+    advisor_registration_number: str
+    client_date: Optional[date] = None
     nominee_name: Optional[str] = None
     nominee_relationship: Optional[str] = None
+    previous_advisor_name: Optional[str] = None
+    referral_source: Optional[str] = None
     declaration_signed: bool = False
     declaration_date: Optional[date] = None
     assigned_employee_id: Optional[uuid.UUID] = None
 
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_age(cls, v: date) -> date:
+        today = date.today()
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 18:
+            raise ValueError("Age must be at least 18 years")
+        return v
+
 class ClientCreate(ClientBase):
     password: str
-    client_code: str
     client_signature_path: Optional[str] = None
     advisor_signature_path: Optional[str] = None
 

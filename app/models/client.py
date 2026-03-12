@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 from sqlalchemy import String, Boolean, DateTime, Float, ForeignKey, Text, Date, Integer
@@ -65,8 +65,12 @@ class ClientProfile(Base):
 
     # Metadata
     advisor_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    advisor_registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    client_date: Mapped[Date] = mapped_column(Date, nullable=False, default=date.today)
     nominee_name: Mapped[Optional[str]] = mapped_column(String(255))
     nominee_relationship: Mapped[Optional[str]] = mapped_column(String(100))
+    previous_advisor_name: Mapped[Optional[str]] = mapped_column(String(255))
+    referral_source: Mapped[Optional[str]] = mapped_column(String(100))
     declaration_signed: Mapped[bool] = mapped_column(Boolean, default=False)
     declaration_date: Mapped[Optional[Date]] = mapped_column(Date)
     client_signature_path: Mapped[Optional[str]] = mapped_column(String(512))

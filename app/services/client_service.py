@@ -20,6 +20,24 @@ class ClientService:
         db.add(audit)
 
     @staticmethod
+    def generate_next_client_code(db: Session) -> str:
+        # Fetch the latest client code manually
+        # Expected format: C0000000001
+        last_client = db.query(ClientProfile).filter(
+            ClientProfile.client_code.like("C%")
+        ).order_by(ClientProfile.client_code.desc()).first()
+        
+        if not last_client:
+            return "C0000000001"
+            
+        try:
+            current_num = int(last_client.client_code[1:])
+            next_num = current_num + 1
+            return f"C{next_num:010d}"
+        except (ValueError, TypeError):
+            return "C0000000001"
+
+    @staticmethod
     def create_client(db: Session, client_in: ClientCreate) -> ClientProfile:
         # Check IA Master Limit
         ia_master = db.query(IAMaster).order_by(IAMaster.created_at.desc()).first()
@@ -37,16 +55,18 @@ class ClientService:
 
         if existing:
             if existing.deleted_at:
-                # Reactivate soft-deleted client if same email/PAN?
-                # For now just block as per standard logic, but could be handled.
                 raise ValueError("A deactivated client with this email or PAN already exists.")
             raise ValueError("Client with this email or PAN already exists.")
 
         create_data = client_in.model_dump()
         raw_password = create_data.pop("password")
         
+        # Generate Client Code
+        generated_code = ClientService.generate_next_client_code(db)
+        
         db_client = ClientProfile(
             **create_data,
+            client_code=generated_code,
             password_hash=get_password_hash(raw_password),
             email_normalized=client_in.email.lower()
         )

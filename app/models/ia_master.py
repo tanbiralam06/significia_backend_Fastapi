@@ -12,6 +12,7 @@ class IAMaster(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name_of_ia: Mapped[str] = mapped_column(String(255), nullable=False)
+    date_of_birth: Mapped[Date] = mapped_column(Date, nullable=False)
     nature_of_entity: Mapped[str] = mapped_column(String(50), nullable=False)
     name_of_entity: Mapped[Optional[str]] = mapped_column(String(255))
     ia_registration_number: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
@@ -49,6 +50,7 @@ class EmployeeDetails(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     ia_master_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("ia_master.id", ondelete="CASCADE"), nullable=False)
     name_of_employee: Mapped[str] = mapped_column(String(255), nullable=False)
+    date_of_birth: Mapped[Date] = mapped_column(Date, nullable=False)
     designation: Mapped[str] = mapped_column(String(100))
     ia_registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
     date_of_registration: Mapped[Optional[Date]] = mapped_column(Date)

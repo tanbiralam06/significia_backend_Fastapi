@@ -1,18 +1,30 @@
 from datetime import date, datetime
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from uuid import UUID
 
 # Employee Details Schemas
 class EmployeeBase(BaseModel):
     name_of_employee: str
+    date_of_birth: Optional[date] = None
     designation: str
     ia_registration_number: str
     date_of_registration: Optional[date] = None
     date_of_registration_expiry: Optional[date] = None
 
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_age(cls, v: Optional[date]) -> Optional[date]:
+        if v is None:
+            return v
+        today = date.today()
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 18:
+            raise ValueError("Age must be at least 18 years")
+        return v
+
 class EmployeeCreate(EmployeeBase):
-    pass
+    date_of_birth: date
 
 class EmployeeRead(EmployeeBase):
     id: UUID
@@ -24,11 +36,12 @@ class EmployeeRead(EmployeeBase):
 # IA Master Schemas
 class IAMasterBase(BaseModel):
     name_of_ia: str
+    date_of_birth: Optional[date] = None
     nature_of_entity: str
     name_of_entity: Optional[str] = None
     ia_registration_number: str
-    date_of_registration: date
-    date_of_registration_expiry: date
+    date_of_registration: Optional[date] = None
+    date_of_registration_expiry: Optional[date] = None
     registered_address: str
     registered_contact_number: str
     office_contact_number: Optional[str] = None
@@ -39,8 +52,19 @@ class IAMasterBase(BaseModel):
     bank_branch: str
     ifsc_code: str
 
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_age(cls, v: Optional[date]) -> Optional[date]:
+        if v is None:
+            return v
+        today = date.today()
+        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
+        if age < 18:
+            raise ValueError("Age must be at least 18 years")
+        return v
+
 class IAMasterCreate(IAMasterBase):
-    pass
+    date_of_birth: date
 
 class IAMasterPermitUpdate(BaseModel):
     max_client_permit: int = Field(..., gt=0, description="The new maximum number of allowed clients.")
