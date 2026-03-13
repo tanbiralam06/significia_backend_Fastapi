@@ -1,0 +1,91 @@
+name: significia-backend-prod
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: significia-api-prod
+    restart: unless-stopped
+    command: /entrypoint.sh api
+    environment:
+      - RELOAD=false
+    env_file:
+      - ../.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - significia-network
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: significia-worker-prod
+    restart: unless-stopped
+    command: /entrypoint.sh worker
+    env_file:
+      - ../.env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - significia-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: significia-postgres-prod
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    ports:
+      - "5432:5432"
+    volumes:
+      - significia_postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-significia}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - significia-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: significia-redis-prod
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - significia_redis_data_prod:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - significia-network
+
+  flower:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    container_name: significia-flower-prod
+    restart: unless-stopped
+    command: celery -A app.tasks.celery_app flower --port=5555
+    env_file:
+      - ../.env
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+    networks:
+      - significia-network
+
+volumes:
+  significia_postgres_data_prod:
+  significia_redis_data_prod:
+
+networks:
+  significia-network:
+    driver: bridge

@@ -6,10 +6,11 @@ echo "Starting Significia service..."
 
 if [ "$1" = "api" ]; then
     echo "Running FastAPI server"
-    exec uvicorn app.main:app \
-        --host 0.0.0.0 \
-        --port 8000 \
-        --reload
+    if [ "$RELOAD" = "true" ]; then
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    else
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+    fi
 fi
 
 if [ "$1" = "worker" ]; then
