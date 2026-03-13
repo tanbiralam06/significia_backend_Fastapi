@@ -130,6 +130,28 @@ class ClientService:
         db_client.is_active = False
         db_client.deleted_at = datetime.utcnow()
         
-        ClientService._log_audit(db, db_client.id, "DELETE")
+    @staticmethod
+    def generate_pdf(db: Session, client_id: uuid.UUID) -> tuple[bytes, str]:
+        from app.utils.pdf_generator import ClientPDFGenerator
+        db_client = ClientService.get_client(db, client_id)
+        if not db_client:
+            raise ValueError("Client not found")
+
+        # Convert to dict for generator
+        client_dict = {c.name: getattr(db_client, c.name) for c in db_client.__table__.columns}
+        
+        # Ensure numeric fields are actually numbers and not None
+        numeric_fields = ["annual_income", "net_worth", "existing_portfolio_value"]
+        for field in numeric_fields:
+            if client_dict.get(field) is None:
+                client_dict[field] = 0.0
+            else:
+                client_dict[field] = float(client_dict[field])
+
+        pdf_bytes = ClientPDFGenerator.generate_client_report(client_dict)
+        filename = f"Client_Report_{db_client.client_code}_{db_client.client_name.replace(' ', '_')}.pdf"
+        
+        ClientService._log_audit(db, db_client.id, "PDF_EXPORT")
         db.commit()
-        return True
+        
+        return pdf_bytes, filename

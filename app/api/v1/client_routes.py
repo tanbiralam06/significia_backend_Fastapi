@@ -1,6 +1,6 @@
 from typing import List
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 
 from app.database.remote_session import get_remote_session
@@ -63,3 +63,21 @@ def delete_client(
     if not success:
         raise HTTPException(status_code=404, detail="Client not found")
     return None
+
+@router.get("/{connector_id}/clients/{client_id}/pdf")
+def download_client_report(
+    connector_id: uuid.UUID,
+    client_id: uuid.UUID,
+    remote_db: Session = Depends(get_remote_session)
+):
+    try:
+        pdf_bytes, filename = ClientService.generate_pdf(remote_db, client_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
