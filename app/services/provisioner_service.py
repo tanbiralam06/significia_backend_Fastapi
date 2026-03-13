@@ -64,6 +64,12 @@ class ProvisionerService:
         try:
             # Add deleted_at to clients if missing
             engine.execute_query("ALTER TABLE significia_core.clients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITHOUT TIME ZONE;")
+            # Add aadhar and passport numbers
+            engine.execute_query("ALTER TABLE significia_core.clients ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(12);")
+            engine.execute_query("ALTER TABLE significia_core.clients ADD COLUMN IF NOT EXISTS passport_number VARCHAR(50);")
+            # Add date_of_birth to relevant tables
+            engine.execute_query("ALTER TABLE significia_core.ia_master ADD COLUMN IF NOT EXISTS date_of_birth DATE;")
+            engine.execute_query("ALTER TABLE significia_core.employee_details ADD COLUMN IF NOT EXISTS date_of_birth DATE;")
         except Exception as e:
             print(f"Migration patching failed: {e}")
 
@@ -100,6 +106,8 @@ class ProvisionerService:
             father_name VARCHAR(255) NOT NULL,
             mother_name VARCHAR(255) NOT NULL,
             spouse_name VARCHAR(255),
+            aadhar_number VARCHAR(12),
+            passport_number VARCHAR(50),
             
             annual_income DOUBLE PRECISION NOT NULL,
             net_worth DOUBLE PRECISION NOT NULL,
@@ -186,6 +194,7 @@ class ProvisionerService:
             ia_logo_path VARCHAR(512),
             max_client_permit INTEGER DEFAULT 10,
             current_client_count INTEGER DEFAULT 0,
+            date_of_birth DATE,
             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
@@ -200,6 +209,7 @@ class ProvisionerService:
             name_of_employee VARCHAR(255) NOT NULL,
             designation VARCHAR(100),
             ia_registration_number VARCHAR(100) NOT NULL,
+            date_of_birth DATE,
             date_of_registration DATE,
             date_of_registration_expiry DATE,
             certificate_path VARCHAR(512),

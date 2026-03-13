@@ -104,8 +104,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['client_id'], ['clients.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.add_column('employee_details', sa.Column('date_of_birth', sa.Date(), nullable=False))
-    op.add_column('ia_master', sa.Column('date_of_birth', sa.Date(), nullable=False))
+    op.add_column('employee_details', sa.Column('date_of_birth', sa.Date(), nullable=True))
+    op.add_column('ia_master', sa.Column('date_of_birth', sa.Date(), nullable=True))
     # ### end Alembic commands ###
 
 

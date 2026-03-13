@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, field_validator, model_validator
 import uuid
 from datetime import datetime, date
 
@@ -28,6 +28,8 @@ class ClientBase(BaseModel):
     father_name: str
     mother_name: str
     spouse_name: Optional[str] = None
+    aadhar_number: Optional[str] = None
+    passport_number: Optional[str] = None
     
     annual_income: float
     net_worth: float
@@ -69,6 +71,18 @@ class ClientBase(BaseModel):
             raise ValueError("Age must be at least 18 years")
         return v
 
+    @model_validator(mode='after')
+    def validate_identification(self) -> 'ClientBase':
+        if self.residential_status == "Resident Individual":
+            if not self.aadhar_number:
+                raise ValueError("Aadhar number is required for Resident Individual")
+            if not self.aadhar_number.isdigit() or len(self.aadhar_number) != 12:
+                raise ValueError("Aadhar number must be exactly 12 digits")
+        else:
+            if not self.passport_number:
+                raise ValueError("Passport number is required for non-resident status")
+        return self
+
 class ClientCreate(ClientBase):
     password: str
     client_signature_path: Optional[str] = None
@@ -92,6 +106,8 @@ class ClientUpdate(BaseModel):
     father_name: Optional[str] = None
     mother_name: Optional[str] = None
     spouse_name: Optional[str] = None
+    aadhar_number: Optional[str] = None
+    passport_number: Optional[str] = None
     
     # Financial info
     annual_income: Optional[float] = None
@@ -138,5 +154,7 @@ class ClientResponse(ClientBase):
     
     client_signature_path: Optional[str] = None
     advisor_signature_path: Optional[str] = None
+    aadhar_number: Optional[str] = None
+    passport_number: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
