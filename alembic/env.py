@@ -12,8 +12,17 @@ from alembic import context
 from app.core.config import settings
 from app.database.base import Base
 
-# Ensure all models are imported here so Alembic can discover them
-import app.models
+# List only global system models for Master DB management
+from app.models.user import User
+from app.models.tenant import Tenant
+from app.models.connector import Connector
+from app.models.api_key import ApiKey
+from app.models.refresh_token import RefreshToken
+from app.models.user_session import UserSession
+from app.models.login_attempt import LoginAttempt
+from app.models.mfa_secret import MFASecret
+from app.models.password_reset_token import PasswordResetToken
+from app.models.verification_token import VerificationToken
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
