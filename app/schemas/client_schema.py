@@ -28,6 +28,7 @@ class ClientBase(BaseModel):
     father_name: str
     mother_name: str
     spouse_name: Optional[str] = None
+    spouse_dob: Optional[date] = None
     aadhar_number: Optional[str] = None
     passport_number: Optional[str] = None
     
@@ -106,6 +107,7 @@ class ClientUpdate(BaseModel):
     father_name: Optional[str] = None
     mother_name: Optional[str] = None
     spouse_name: Optional[str] = None
+    spouse_dob: Optional[date] = None
     aadhar_number: Optional[str] = None
     passport_number: Optional[str] = None
     

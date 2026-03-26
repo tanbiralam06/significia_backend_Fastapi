@@ -41,6 +41,17 @@ def get_client(
         raise HTTPException(status_code=404, detail="Client not found")
     return client
 
+@router.get("/{connector_id}/clients/pan/{pan}", response_model=ClientResponse)
+def get_client_by_pan(
+    connector_id: uuid.UUID,
+    pan: str,
+    remote_db: Session = Depends(get_remote_session)
+):
+    client = ClientService.get_client_by_pan(remote_db, pan)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return client
+
 @router.put("/{connector_id}/clients/{client_id}", response_model=ClientResponse)
 def update_client(
     connector_id: uuid.UUID,

@@ -92,6 +92,14 @@ class ClientService:
         ).first()
 
     @staticmethod
+    def get_client_by_pan(db: Session, pan_number: str) -> Optional[ClientProfile]:
+        """Fetch client details by PAN number for real-time validation."""
+        return db.query(ClientProfile).filter(
+            ClientProfile.pan_number == pan_number.upper(),
+            ClientProfile.deleted_at == None
+        ).first()
+
+    @staticmethod
     def list_clients(db: Session) -> List[ClientProfile]:
         return db.query(ClientProfile).filter(ClientProfile.deleted_at == None).all()
 

@@ -67,9 +67,14 @@ class ProvisionerService:
             # Add aadhar and passport numbers
             engine.execute_query("ALTER TABLE significia_core.clients ADD COLUMN IF NOT EXISTS aadhar_number VARCHAR(12);")
             engine.execute_query("ALTER TABLE significia_core.clients ADD COLUMN IF NOT EXISTS passport_number VARCHAR(50);")
+            engine.execute_query("ALTER TABLE significia_core.clients ADD COLUMN IF NOT EXISTS spouse_dob DATE;")
             # Add date_of_birth to relevant tables
             engine.execute_query("ALTER TABLE significia_core.ia_master ADD COLUMN IF NOT EXISTS date_of_birth DATE;")
             engine.execute_query("ALTER TABLE significia_core.employee_details ADD COLUMN IF NOT EXISTS date_of_birth DATE;")
+            # Patch financial_analysis_profiles
+            engine.execute_query("ALTER TABLE significia_core.financial_analysis_profiles ADD COLUMN IF NOT EXISTS pan VARCHAR(20);")
+            engine.execute_query("ALTER TABLE significia_core.financial_analysis_profiles ADD COLUMN IF NOT EXISTS contact VARCHAR(20);")
+            engine.execute_query("ALTER TABLE significia_core.financial_analysis_profiles ADD COLUMN IF NOT EXISTS email VARCHAR(100);")
         except Exception as e:
             print(f"Migration patching failed: {e}")
 
@@ -104,8 +109,8 @@ class ProvisionerService:
             tax_residency VARCHAR(100) NOT NULL,
             pep_status VARCHAR(100) NOT NULL,
             father_name VARCHAR(255) NOT NULL,
-            mother_name VARCHAR(255) NOT NULL,
             spouse_name VARCHAR(255),
+            spouse_dob DATE,
             aadhar_number VARCHAR(12),
             passport_number VARCHAR(50),
             
@@ -253,3 +258,64 @@ class ProvisionerService:
         );
         """
         engine.execute_query(create_audit)
+
+        # Create Financial Analysis Profiles Table
+        create_fa_profiles = """
+        CREATE TABLE IF NOT EXISTS significia_core.financial_analysis_profiles (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+
+            pan VARCHAR(20),
+            contact VARCHAR(20),
+            email VARCHAR(100),
+            occupation VARCHAR(100) NOT NULL,
+            dob DATE NOT NULL,
+            annual_income DOUBLE PRECISION NOT NULL,
+
+            spouse_name VARCHAR(255),
+            spouse_dob DATE,
+            spouse_occupation VARCHAR(100),
+
+            children JSONB DEFAULT '[]'::jsonb,
+            expenses JSONB NOT NULL,
+            assets JSONB NOT NULL,
+            liabilities JSONB NOT NULL,
+            insurance JSONB NOT NULL,
+            assumptions JSONB NOT NULL,
+
+            medical_bonus_years DOUBLE PRECISION DEFAULT 0.0,
+            medical_bonus_percentage DOUBLE PRECISION DEFAULT 0.0,
+            education_investment_pct DOUBLE PRECISION DEFAULT 0.0,
+            marriage_investment_pct DOUBLE PRECISION DEFAULT 0.0,
+
+            exclude_ai BOOLEAN DEFAULT FALSE,
+            disclaimer_text TEXT,
+            discussion_notes TEXT,
+
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_fa_profiles_client ON significia_core.financial_analysis_profiles(client_id);
+        """
+        engine.execute_query(create_fa_profiles)
+
+        # Create Financial Analysis Results Table
+        create_fa_results = """
+        CREATE TABLE IF NOT EXISTS significia_core.financial_analysis_results (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            profile_id UUID NOT NULL REFERENCES significia_core.financial_analysis_profiles(id) ON DELETE CASCADE,
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+
+            calculations JSONB NOT NULL,
+            hlv_data JSONB NOT NULL,
+            medical_data JSONB NOT NULL,
+            cash_flow_analysis JSONB,
+            ai_analysis JSONB,
+
+            financial_health_score INTEGER DEFAULT 0,
+
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_fa_results_profile ON significia_core.financial_analysis_results(profile_id);
+        CREATE INDEX IF NOT EXISTS idx_fa_results_client ON significia_core.financial_analysis_results(client_id);
+        """
+        engine.execute_query(create_fa_results)

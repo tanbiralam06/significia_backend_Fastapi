@@ -39,6 +39,7 @@ class ClientProfile(Base):
     father_name: Mapped[str] = mapped_column(String(255), nullable=False)
     mother_name: Mapped[str] = mapped_column(String(255), nullable=False)
     spouse_name: Mapped[Optional[str]] = mapped_column(String(255))
+    spouse_dob: Mapped[Optional[date]] = mapped_column(Date)
     aadhar_number: Mapped[Optional[str]] = mapped_column(String(12))
     passport_number: Mapped[Optional[str]] = mapped_column(String(50))
 
