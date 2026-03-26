@@ -11,7 +11,7 @@ from app.models.ia_master import IAMaster
 from app.models.financial_analysis import FinancialAnalysisProfile, FinancialAnalysisResult
 from app.schemas.financial_analysis_schema import FinancialAnalysisCreate
 from app.analysis.financial_calculator import FinancialCalculator, safe_float
-from app.analysis.ai_commentary import AICommentaryGenerator
+from app.analysis.ai_commentary import SystemCommentaryGenerator
 
 
 class FinancialAnalysisService:
@@ -20,7 +20,7 @@ class FinancialAnalysisService:
     def create_analysis(db: Session, analysis_in: FinancialAnalysisCreate) -> FinancialAnalysisResult:
         """
         Create a new financial analysis for a client.
-        Steps: validate client → snapshot profile → calculate → generate AI → save → audit.
+        Steps: validate client → snapshot profile → calculate → generate system commentary → save → audit.
         """
         # 1. Validate client exists
         client = db.query(ClientProfile).filter(
@@ -92,10 +92,10 @@ class FinancialAnalysisService:
             medical_bonus_percentage=analysis_in.medical_bonus_percentage,
         )
 
-        # 6. Generate AI commentary (unless excluded)
+        # 6. Generate system commentary (unless excluded)
         ai_analysis = None
         if not analysis_in.exclude_ai:
-            ai_analysis = AICommentaryGenerator.generate_all_commentary(
+            ai_analysis = SystemCommentaryGenerator.generate_all_commentary(
                 calculations=calculations,
                 hlv_data=hlv_data,
                 medical_data=medical_data,
@@ -273,29 +273,43 @@ class FinancialAnalysisService:
         })
 
         # 3. Retirement
+        years_to_retirement = max(0, int(assumptions.get('retirement_age', 60)) - client_age)
+        years_in_retirement = max(0, int(assumptions.get('le_client', 85)) - int(assumptions.get('retirement_age', 60)))
+        e_adjusted = profile.annual_income * (assumptions.get('sol_ret', 80) / 100) # Wait, should be annual_expenses?
+        # Re-check: e_adjusted = E_current * SOL. My code uses annual_expenses.
+        e_adjusted = total_expenses * (assumptions.get('sol_ret', 80) / 100)
+        e_retirement = e_adjusted * ((1 + assumptions.get('inflation', 6)/100) ** years_to_retirement)
+
         details.append({
-            'section': 'Retirement Corpus Calculation',
+            'section': 'Retirement Corpus Calculation (Rigorous Model)',
             'steps': [
                 {
                     'step': 1,
-                    'description': 'Corpus Required at Retirement',
-                    'formula': 'Retirement Corpus = Annual Expenses × SOL% × PV of growing annuity',
-                    'calculation': f'Annual Expenses: Rs {int(total_expenses):,}\nSOL: {assumptions.get("sol_ret", 80)}%\nRetirement Period: {int(assumptions.get("le_client", 85)) - int(assumptions.get("retirement_age", 60))} years\nInflation: {assumptions.get("inflation", 6)}%\nPost-Return Rate: {assumptions.get("post_ret_rate", 8)}%',
-                    'result': f'Corpus Required: Rs {calculations.get("retirement_corpus_at_retirement", 0):,}',
+                    'description': 'Adjust Expense for Lifestyle',
+                    'formula': 'E_adjusted = Current Annual Expense × SOL Factor',
+                    'calculation': f'Rs {int(total_expenses):,} × {assumptions.get("sol_ret", 80)}% = Rs {int(e_adjusted):,}',
+                    'result': f'Adjusted Expense: Rs {int(e_adjusted):,}',
                 },
                 {
                     'step': 2,
-                    'description': 'Net Retirement Corpus Needed',
-                    'formula': 'Net Corpus = Required Corpus - FV of Existing Savings',
-                    'calculation': f'Required: Rs {calculations.get("retirement_corpus_at_retirement", 0):,}\n- FV of Savings: Rs {calculations.get("future_value_existing_savings", 0):,}',
-                    'result': f'Net Corpus: Rs {calculations.get("net_retirement_corpus_needed", 0):,}',
+                    'description': 'Inflate Expense to Retirement Date',
+                    'formula': 'E_retirement = E_adjusted × (1 + i)^t',
+                    'calculation': f'Rs {int(e_adjusted):,} × (1 + {assumptions.get("inflation", 6)}%)^{years_to_retirement} years',
+                    'result': f'First-year retirement expense: Rs {int(e_retirement):,}',
                 },
                 {
                     'step': 3,
+                    'description': 'Compute Retirement Corpus Needed',
+                    'formula': 'Corpus = E_retirement × [1 - ((1 + i) / (1 + r))^n] / (r - i)',
+                    'calculation': f'E_retirement: Rs {int(e_retirement):,}\nInflation (i): {assumptions.get("inflation", 6)}%\nReturn (r): {assumptions.get("post_ret_rate", 8)}%\nDuration (n): {years_in_retirement} years',
+                    'result': f'Total Corpus Required: Rs {calculations.get("retirement_corpus_at_retirement", 0):,}',
+                },
+                {
+                    'step': 4,
                     'description': 'Monthly Investment Required',
-                    'formula': 'PMT = FV / [(1 + r)^n - 1]/r',
-                    'calculation': f'Target: Rs {calculations.get("net_retirement_corpus_needed", 0):,}\nRate: {assumptions.get("pre_ret_rate", 12)}%/12 per month\nMonths: {calculations.get("years_to_retirement", 0) * 12}',
-                    'result': f'Monthly Investment: Rs {calculations.get("monthly_investment_retirement", 0):,}',
+                    'formula': 'Monthly = Net Corpus / FV Annuity Factor',
+                    'calculation': f'Target: Rs {calculations.get("net_retirement_corpus_needed", 0):,}\nMonths: {years_to_retirement * 12}',
+                    'result': f'Required Monthly SIP: Rs {calculations.get("monthly_investment_retirement", 0):,}',
                 },
             ],
         })

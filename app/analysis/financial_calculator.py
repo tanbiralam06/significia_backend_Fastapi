@@ -336,46 +336,68 @@ class FinancialCalculator:
     @staticmethod
     def calculate_retirement_corpus_at_retirement(annual_expenses, retirement_age, current_age,
                                                    life_expectancy, sol_percent, inflation, post_ret_rate):
-        """Calculate retirement corpus needed AT RETIREMENT AGE (Future Value)."""
-        years_in_retirement = int(life_expectancy) - int(retirement_age)
+        """Calculate retirement corpus needed AT RETIREMENT AGE (Future Value) using rigorous inflation-adjusted model."""
+        years_to_retirement = max(0, int(retirement_age) - int(current_age))
+        years_in_retirement = max(0, int(life_expectancy) - int(retirement_age))
+        
         if years_in_retirement <= 0:
-            return int(annual_expenses * 20)
+            return 0
 
-        annual_retirement_expenses = annual_expenses * (sol_percent / 100)
-        r = post_ret_rate / 100
-        g = inflation / 100
-
-        if r == g:
-            corpus_at_retirement = annual_retirement_expenses * years_in_retirement
+        # Step 2: Adjust Expense for Lifestyle
+        e_adjusted = annual_expenses * (sol_percent / 100)
+        
+        # Step 3: Inflate Expense to Retirement
+        i_rate = inflation / 100
+        e_retirement = e_adjusted * ((1 + i_rate) ** years_to_retirement)
+        
+        # Steps 4 & 5: Compute Factor and Corpus
+        r_rate = post_ret_rate / 100
+        
+        if abs(r_rate - i_rate) < 0.0001:
+            # If r == i, PV of growing annuity is n * W1 / (1 + r)
+            corpus_at_retirement = years_in_retirement * e_retirement / (1 + r_rate)
         else:
-            factor = (1 + g) / (1 + r)
-            corpus_at_retirement = annual_retirement_expenses * (1 - factor ** years_in_retirement) / (r - g)
+            # Factor = [1 - ((1 + i) / (1 + r))^n] / (r - i)
+            factor = (1 - ((1 + i_rate) / (1 + r_rate)) ** years_in_retirement) / (r_rate - i_rate)
+            corpus_at_retirement = e_retirement * factor
 
         return int(max(0, corpus_at_retirement))
 
     @staticmethod
     def calculate_cash_flow_analysis(corpus_at_retirement, annual_expenses, retirement_age,
                                      current_age, life_expectancy, sol_percent, inflation, post_ret_rate):
-        """Generate year-by-year cash flow analysis with zero balance at life expectancy."""
-        cash_flow = []
-        years_in_retirement = int(life_expectancy) - int(retirement_age)
+        """Generate year-by-year cash flow analysis with automated depletion at life expectancy."""
+        years_to_retirement = max(0, int(retirement_age) - int(current_age))
+        years_in_retirement = max(0, int(life_expectancy) - int(retirement_age))
+        
         if years_in_retirement <= 0 or corpus_at_retirement <= 0:
             return []
 
+        # First year withdrawal is E_adjusted inflated for years_to_retirement
+        e_adjusted = annual_expenses * (sol_percent / 100)
+        i_rate = inflation / 100
+        first_year_withdrawal = e_adjusted * ((1 + i_rate) ** years_to_retirement)
+        
         balance = corpus_at_retirement
-        annual_withdrawal_base = annual_expenses * (sol_percent / 100)
+        cash_flow = []
 
         for year in range(1, years_in_retirement + 1):
             opening_balance = balance
             growth = balance * (post_ret_rate / 100)
-            withdrawal = annual_withdrawal_base * ((1 + inflation / 100) ** (year - 1))
+            
+            # Withdrawal increases by inflation each year
+            withdrawal = first_year_withdrawal * ((1 + i_rate) ** (year - 1))
 
-            # Final year — withdraw everything to reach zero
+            # Final year correction to match zero balance (Step 5/6 requirement)
             if year == years_in_retirement:
                 withdrawal = opening_balance + growth
                 closing_balance = 0
             else:
                 closing_balance = opening_balance + growth - withdrawal
+                # Ensure no negative balance in simulation
+                if closing_balance < 0:
+                    withdrawal = opening_balance + growth
+                    closing_balance = 0
 
             cash_flow.append({
                 'year': year,
@@ -387,6 +409,9 @@ class FinancialCalculator:
                 'age_at_year_end': int(retirement_age) + year,
             })
             balance = closing_balance
+            if balance <= 0 and year < years_in_retirement:
+                # If balance hits zero early, continue with zeros
+                pass
 
         return cash_flow
 

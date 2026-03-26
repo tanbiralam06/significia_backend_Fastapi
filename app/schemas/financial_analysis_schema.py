@@ -19,17 +19,17 @@ class ChildInfo(BaseModel):
 
 class ExpensesInput(BaseModel):
     """11 expense categories from finplan.py (exact match)."""
-    hh: float = 0.0          # Household
-    med: float = 0.0         # Medical
-    travel: float = 0.0      # Travel
-    elec: float = 0.0        # Electricity
-    tele: float = 0.0        # Telephone
-    maid: float = 0.0        # Maid
-    edu: float = 0.0         # Education
-    ent: float = 0.0         # Entertainment
-    emi: float = 0.0         # EMI
-    savings: float = 0.0     # Savings/Investment
-    misc: float = 0.0        # Miscellaneous
+    hh: Optional[float] = 0.0          # Household
+    med: Optional[float] = 0.0         # Medical
+    travel: Optional[float] = 0.0      # Travel
+    elec: Optional[float] = 0.0        # Electricity
+    tele: Optional[float] = 0.0        # Telephone
+    maid: Optional[float] = 0.0        # Maid
+    edu: Optional[float] = 0.0         # Education
+    ent: Optional[float] = 0.0         # Entertainment
+    emi: Optional[float] = 0.0         # EMI
+    savings: Optional[float] = 0.0     # Savings/Investment
+    misc: Optional[float] = 0.0        # Miscellaneous
 
     @property
     def total(self) -> float:
@@ -41,10 +41,10 @@ class ExpensesInput(BaseModel):
 
 class AssetsInput(BaseModel):
     """4 asset categories from finplan.py."""
-    land: float = 0.0        # Land & Building
-    inv: float = 0.0         # Investments
-    cash: float = 0.0        # Cash & Bank
-    retirement: float = 0.0  # Retirement savings
+    land: Optional[float] = 0.0        # Land & Building
+    inv: Optional[float] = 0.0         # Investments
+    cash: Optional[float] = 0.0        # Cash & Bank
+    retirement: Optional[float] = 0.0  # Retirement savings
 
     @property
     def total(self) -> float:
@@ -53,14 +53,14 @@ class AssetsInput(BaseModel):
 
 class OtherLiability(BaseModel):
     label: str
-    amount: float = 0.0
+    amount: Optional[float] = 0.0
 
 
 class LiabilitiesInput(BaseModel):
     """3 liability types from finplan.py + dynamic others."""
-    personal: float = 0.0
-    cc: float = 0.0          # Credit Card
-    hb: float = 0.0          # Home/Building
+    personal: Optional[float] = 0.0
+    cc: Optional[float] = 0.0          # Credit Card
+    hb: Optional[float] = 0.0          # Home/Building
     others: List[OtherLiability] = []
 
     @property
@@ -71,14 +71,14 @@ class LiabilitiesInput(BaseModel):
 
 class InsuranceInput(BaseModel):
     """8 insurance fields from finplan.py."""
-    life_cover: float = 0.0
-    life_premium: float = 0.0
-    med_cover: float = 0.0
-    med_premium: float = 0.0
-    veh_cover: float = 0.0
-    veh_premium: float = 0.0
-    other_cover: float = 0.0
-    other_premium: float = 0.0
+    life_cover: Optional[float] = 0.0
+    life_premium: Optional[float] = 0.0
+    med_cover: Optional[float] = 0.0
+    med_premium: Optional[float] = 0.0
+    veh_cover: Optional[float] = 0.0
+    veh_premium: Optional[float] = 0.0
+    other_cover: Optional[float] = 0.0
+    other_premium: Optional[float] = 0.0
 
 
 class AssumptionsInput(BaseModel):

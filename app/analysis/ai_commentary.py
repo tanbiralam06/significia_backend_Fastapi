@@ -1,16 +1,16 @@
 """
-AI Commentary — Template-Based Financial Analysis Commentary
-Extracted from finplan.py DeepSeekAIAnalyst class.
+System Commentary — Template-Based Financial Analysis Commentary
+Extracted from finplan.py SystemAnalyst class.
 All methods are static and return HTML template strings with dynamic values.
-NOTE: Despite the original branding, this is NOT an actual AI API integration.
+NOTE: This is a rule-based system-generated commentary.
 """
 from datetime import datetime
 
 
-class AICommentaryGenerator:
+class SystemCommentaryGenerator:
     """
     Generate template-based commentary for financial analysis reports.
-    These are presented as "AI-Powered" insights in the reports.
+    These are presented as "System Generated" insights in the reports.
     All methods are stateless and return formatted HTML strings.
     """
 
@@ -22,7 +22,7 @@ class AICommentaryGenerator:
         """Generate 300-word executive brief — informational only, no forecasting."""
         return f"""
         <div class="analysis-card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9;">
-            <h4 style="color: #0369a1;"><strong>AI-POWERED EXECUTIVE BRIEF (300 WORDS)</strong></h4>
+            <h4 style="color: #0369a1;"><strong>SYSTEM-GENERATED EXECUTIVE BRIEF (300 WORDS)</strong></h4>
             <p><strong>Prepared for:</strong> {client_name}</p>
             <p><strong>Analysis Date:</strong> {datetime.now().strftime("%d %B, %Y")}</p>
 
@@ -123,7 +123,7 @@ class AICommentaryGenerator:
         safe_years = max(1, years_to_retirement)
         return f"""
         <div class="analysis-card" style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); border-left: 4px solid #ca8a04;">
-            <h4 style="color: #854d0e;"><strong>AI-GENERATED OVERALL CONCLUSION (300 WORDS)</strong></h4>
+            <h4 style="color: #854d0e;"><strong>SYSTEM-GENERATED OVERALL CONCLUSION (300 WORDS)</strong></h4>
 
             <h5><strong>FINANCIAL GOALS SUMMARY</strong></h5>
             <p>This analysis presents a comprehensive evaluation of financial objectives. Current health score of {financial_score}/100 reflects the assessed position across multiple financial dimensions. Insurance protection evaluation indicates gaps of Rs {min(hlv_gap_income, hlv_gap_expense):,} based on selected methodology. Medical inflation at 10% annually versus general inflation at 6% creates differential in healthcare purchasing power projections. Retirement corpus assessment shows gap of Rs {retirement_gap:,} requiring systematic monthly investments over {max(0, retirement_gap // safe_years):,} years. Child education (Rs {child_education_gap:,}) and marriage (Rs {child_marriage_gap:,}) gaps are presented with corresponding time horizons. Current Rs {net_worth:,} net worth and {savings_rate}% savings rate form the foundation for financial planning.</p>
@@ -165,7 +165,7 @@ class AICommentaryGenerator:
 
         result = {}
 
-        result['executive_brief'] = AICommentaryGenerator.generate_executive_brief(
+        result['executive_brief'] = SystemCommentaryGenerator.generate_executive_brief(
             client_name=client_name,
             hlv_income=calculations.get('hlv_income_method', 0),
             hlv_expense=calculations.get('hlv_expense_method', 0),
@@ -180,7 +180,7 @@ class AICommentaryGenerator:
             savings_rate=calculations.get('savings_rate', 0),
         )
 
-        result['hlv_comments'] = AICommentaryGenerator.generate_hlv_comments(
+        result['hlv_comments'] = SystemCommentaryGenerator.generate_hlv_comments(
             hlv_income=hlv_data.get('hlv_income_method', 0),
             net_hlv=hlv_data.get('net_hlv_income', 0),
             existing_assets=hlv_data.get('existing_financial_assets', 0),
@@ -188,7 +188,7 @@ class AICommentaryGenerator:
             current_cover=hlv_data.get('current_life_cover', 0),
         )
 
-        result['medical_comments'] = AICommentaryGenerator.generate_medical_comments(
+        result['medical_comments'] = SystemCommentaryGenerator.generate_medical_comments(
             medical_retirement=medical_data.get('medical_corpus_at_retirement', 0),
             coverage_retirement=medical_data.get('total_coverage_at_retirement', 0),
             balance_needed=medical_data.get('balance_needed_at_retirement', 0),
@@ -196,30 +196,30 @@ class AICommentaryGenerator:
             balance_needed_life_expectancy=medical_data.get('balance_needed_at_life_expectancy', 0),
         )
 
-        result['retirement_comments'] = AICommentaryGenerator.generate_retirement_comments(
+        result['retirement_comments'] = SystemCommentaryGenerator.generate_retirement_comments(
             corpus_retirement=calculations.get('retirement_corpus_at_retirement', 0),
             monthly_investment=calculations.get('monthly_investment_retirement', 0),
             years_remaining=calculations.get('years_to_retirement', 0),
             readiness_score=calculations.get('retirement_readiness', 0),
         )
 
-        result['child_goal_comments'] = AICommentaryGenerator.generate_child_goal_comments(
+        result['child_goal_comments'] = SystemCommentaryGenerator.generate_child_goal_comments(
             education_future=calculations.get('education_future_needed', 0),
             marriage_future=calculations.get('marriage_future_needed', 0),
             monthly_investment_edu=calculations.get('monthly_investment_education', 0),
             monthly_investment_marriage=calculations.get('monthly_investment_marriage', 0),
         )
 
-        result['monthly_investment_comments'] = AICommentaryGenerator.generate_monthly_investment_comments(
+        result['monthly_investment_comments'] = SystemCommentaryGenerator.generate_monthly_investment_comments(
             total_income_method=calculations.get('total_monthly_investment_income', 0),
             total_expense_method=calculations.get('total_monthly_investment_expense', 0),
             monthly_medical_retirement=calculations.get('monthly_investment_medical_retirement', 0),
             monthly_medical_life_expectancy=calculations.get('monthly_investment_medical_life_expectancy', 0),
         )
 
-        result['cash_flow_analysis'] = AICommentaryGenerator.generate_cash_flow_analysis()
+        result['cash_flow_analysis'] = SystemCommentaryGenerator.generate_cash_flow_analysis()
 
-        result['overall_conclusion'] = AICommentaryGenerator.generate_overall_conclusion(
+        result['overall_conclusion'] = SystemCommentaryGenerator.generate_overall_conclusion(
             client_name=client_name,
             financial_score=calculations.get('financial_health_score', 0),
             total_monthly_investment_income=calculations.get('total_monthly_investment_income', 0),

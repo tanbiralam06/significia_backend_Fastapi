@@ -207,10 +207,10 @@ class FinancialReportGenerator:
         # 1.5 Expenses Breakdown
         elements.append(Paragraph('1.5 Annual Expenses', subsection_style))
         exp_cats = {
-            'household': 'Household & Groceries', 'medical': 'Medical & Healthcare', 'travel': 'Travel & Transportation',
-            'electricity': 'Electricity & Utilities', 'telephone': 'Telephone & Internet', 'maid': 'Maid & Domestic Help',
-            'education': 'Education & Children', 'entertainment': 'Entertainment & Leisure', 'emi': 'EMI Paid',
-            'savings': 'Savings/Investment CONTRIBUTION', 'miscellaneous': 'Miscellaneous Expenses'
+            'hh': 'Household & Groceries', 'med': 'Medical & Healthcare', 'travel': 'Travel & Transportation',
+            'elec': 'Electricity & Utilities', 'tele': 'Telephone & Internet', 'maid': 'Maid & Domestic Help',
+            'edu': 'Education & Children', 'ent': 'Entertainment & Leisure', 'emi': 'EMI Paid',
+            'savings': 'Savings/Investment CONTRIBUTION', 'misc': 'Miscellaneous Expenses'
         }
         exp_data = [['Expense Category', 'Amount']]
         total_exp = 0
@@ -233,10 +233,12 @@ class FinancialReportGenerator:
         # 1.6 & 1.7 Assets and Liabilities
         elements.append(Paragraph('1.6 Assets & 1.7 Liabilities', subsection_style))
         ast_data = [['Asset Category', 'Amount']]
+        ast_map = {'land': 'Land & Building', 'inv': 'Investments', 'cash': 'Cash at Bank', 'retirement': 'Retirement Savings'}
         total_ast = 0
-        for k, v in profile.assets.items():
+        for k, label in ast_map.items():
+            v = profile.assets.get(k, 0)
             if v > 0:
-                ast_data.append([k.replace('_', ' ').title(), format_currency(v)])
+                ast_data.append([label, format_currency(v)])
                 total_ast += v
         ast_data.append(['TOTAL ASSETS', format_currency(total_ast)])
         t = Table(ast_data, colWidths=[300, 200])
@@ -245,17 +247,25 @@ class FinancialReportGenerator:
         elements.append(Spacer(1, 6))
 
         lib_data = [['Liability Category', 'Amount']]
+        lib_map = {'personal': 'Personal Loan', 'cc': 'Credit Card', 'hb': 'Home/Building Loan'}
         total_lib = 0
-        for k, v in profile.liabilities.items():
-            if k == 'others' and isinstance(v, list):
-                for other in v:
-                    amt = other.get('amount', 0) if isinstance(other, dict) else getattr(other, 'amount', 0)
-                    if amt > 0:
-                        lib_data.append([other.get('label', 'Other') if isinstance(other, dict) else getattr(other, 'label', 'Other'), format_currency(amt)])
-                        total_lib += amt
-            elif isinstance(v, (int, float)) and v > 0:
-                lib_data.append([k.replace('_', ' ').title(), format_currency(v)])
+        # Standard liabilities
+        for k, label in lib_map.items():
+            v = profile.liabilities.get(k, 0)
+            if v > 0:
+                lib_data.append([label, format_currency(v)])
                 total_lib += v
+                
+        # Custom "Other" liabilities
+        others = profile.liabilities.get('others', [])
+        if isinstance(others, list):
+            for other in others:
+                amt = other.get('amount', 0) if isinstance(other, dict) else getattr(other, 'amount', 0)
+                if amt > 0:
+                    label = other.get('label', 'Other') if isinstance(other, dict) else getattr(other, 'label', 'Other')
+                    lib_data.append([label, format_currency(amt)])
+                    total_lib += amt
+
         lib_data.append(['TOTAL LIABILITIES', format_currency(total_lib)])
         t = Table(lib_data, colWidths=[300, 200])
         t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.grey), ('GRID', (0,0), (-1,-1), 1, colors.black)]))
@@ -312,14 +322,15 @@ class FinancialReportGenerator:
 
         # 3. AI Executive Brief
         if not profile.exclude_ai and result.ai_analysis and 'executive_brief' in result.ai_analysis:
-            elements.append(Paragraph('3. AI-POWERED EXECUTIVE BRIEF', section_style))
+            elements.append(Paragraph('Executive Summary & Insights', section_style))
             brief = result.ai_analysis['executive_brief']
+            # Remove any HTML tags if they exist (though usually they don't in PDF generator)
             brief = re.sub(r'<[^>]*>', '', brief)
             elements.append(Paragraph(brief, normal_style))
-            elements.append(Spacer(1, 20))
+            elements.append(Spacer(1, 12))
 
         # 4. HLV
-        elements.append(Paragraph('4. HUMAN LIFE VALUE CALCULATION', section_style))
+        elements.append(Paragraph('4. Human Life Value Analysis', section_style))
         hlv = result.hlv_data
         hlv_info = [
             ['Description', 'Value'],
@@ -336,10 +347,10 @@ class FinancialReportGenerator:
 
         # AI HLV Comments
         if not profile.exclude_ai and result.ai_analysis and 'hlv_comments' in result.ai_analysis:
-            elements.append(Paragraph('4.1 AI Analysis of HLV', subsection_style))
+            elements.append(Paragraph('System Insights (HLV):', subsection_style))
             for comment in result.ai_analysis['hlv_comments']:
-                elements.append(Paragraph(f"• {re.sub(r'<[^>]*>', '', comment)}", normal_style))
-            elements.append(Spacer(1, 12))
+                elements.append(Paragraph(f"• {comment}", normal_style))
+            elements.append(Spacer(1, 6))
 
         # 5. Medical
         elements.append(Paragraph('5. Medical Coverage Analysis', section_style))
@@ -357,13 +368,13 @@ class FinancialReportGenerator:
 
         # AI Medical Comments
         if not profile.exclude_ai and result.ai_analysis and 'medical_comments' in result.ai_analysis:
-            elements.append(Paragraph('5.1 AI Analysis of Medical Coverage', subsection_style))
+            elements.append(Paragraph('System Insights (Medical):', subsection_style))
             for comment in result.ai_analysis['medical_comments']:
-                elements.append(Paragraph(f"• {re.sub(r'<[^>]*>', '', comment)}", normal_style))
-            elements.append(Spacer(1, 12))
+                elements.append(Paragraph(f"• {comment}", normal_style))
+            elements.append(Spacer(1, 6))
 
         # 6. Retirement
-        elements.append(Paragraph('6. RETIREMENT CORPUS ANALYSIS', section_style))
+        elements.append(Paragraph('6. Retirement Corpus Analysis', section_style))
         ret = result.calculations
         ret_info = [
             ['Description', 'Value'],
@@ -378,10 +389,10 @@ class FinancialReportGenerator:
 
         # AI Retirement Comments
         if not profile.exclude_ai and result.ai_analysis and 'retirement_comments' in result.ai_analysis:
-            elements.append(Paragraph('6.1 AI Analysis of Retirement', subsection_style))
+            elements.append(Paragraph('System Insights (Retirement):', subsection_style))
             for comment in result.ai_analysis['retirement_comments']:
-                elements.append(Paragraph(f"• {re.sub(r'<[^>]*>', '', comment)}", normal_style))
-            elements.append(Spacer(1, 12))
+                elements.append(Paragraph(f"• {comment}", normal_style))
+            elements.append(Spacer(1, 6))
 
         # 7. Cash Flow Table
         if result.cash_flow_analysis:
@@ -474,7 +485,7 @@ class FinancialReportGenerator:
         elements.append(t)
         elements.append(Spacer(1, 12))
 
-        # 13. AI Conclusion
+        # 13. System Conclusion
         if not profile.exclude_ai and result.ai_analysis and 'overall_conclusion' in result.ai_analysis:
             elements.append(Paragraph('13. OVERALL CONCLUSION', section_style))
             conc = result.ai_analysis['overall_conclusion']
@@ -517,29 +528,112 @@ class FinancialReportGenerator:
                     table.cell(i, j).text = str(val)
 
         # 1. Client Profile
-        add_table("1. Client Profile", [
+        add_table("1.1 Basic Information", [
             ["Particulars", "Details"],
+            ["Name", client_name],
+            ["Date of Birth", str(profile.dob)],
             ["Occupation", profile.occupation],
-            ["Income", format_currency(profile.annual_income)],
-            ["Email", profile.email or "N/A"]
+            ["Annual Income", format_currency(profile.annual_income)]
+        ])
+
+        if profile.spouse_name:
+            add_table("1.2 Spouse Information", [
+                ["Particulars", "Details"],
+                ["Name", profile.spouse_name],
+                ["Occupation", profile.spouse_occupation or "N/A"]
+            ])
+
+        # 1.5 Expenses
+        exp_cats = {
+            'hh': 'Household & Groceries', 'med': 'Medical & Healthcare', 'travel': 'Travel & Transportation',
+            'elec': 'Electricity & Utilities', 'tele': 'Telephone & Internet', 'maid': 'Maid & Domestic Help',
+            'edu': 'Education & Children', 'ent': 'Entertainment & Leisure', 'emi': 'EMI Paid',
+            'savings': 'Savings/Investment CONTRIBUTION', 'misc': 'Miscellaneous Expenses'
+        }
+        exp_data = [["Expense Category", "Amount"]]
+        total_exp = 0
+        for k, label in exp_cats.items():
+            amt = profile.expenses.get(k, 0)
+            if amt > 0:
+                exp_data.append([label, format_currency(amt)])
+                total_exp += amt
+        exp_data.append(["TOTAL ANNUAL EXPENSES", format_currency(total_exp)])
+        add_table("1.5 Annual Expenses", exp_data)
+
+        # 1.6 Assets
+        ast_map = {'land': 'Land & Building', 'inv': 'Investments', 'cash': 'Cash at Bank', 'retirement': 'Retirement Savings'}
+        ast_data = [["Asset Category", "Amount"]]
+        total_ast = 0
+        for k, label in ast_map.items():
+            v = profile.assets.get(k, 0)
+            if v > 0:
+                ast_data.append([label, format_currency(v)])
+                total_ast += v
+        ast_data.append(["TOTAL ASSETS", format_currency(total_ast)])
+        add_table("1.6 Assets", ast_data)
+
+        # 1.7 Liabilities
+        lib_map = {'personal': 'Personal Loan', 'cc': 'Credit Card', 'hb': 'Home/Building Loan'}
+        lib_data = [["Liability Category", "Amount"]]
+        total_lib = 0
+        for k, label in lib_map.items():
+            v = profile.liabilities.get(k, 0)
+            if v > 0:
+                lib_data.append([label, format_currency(v)])
+                total_lib += v
+        others = profile.liabilities.get('others', [])
+        if isinstance(others, list):
+            for other in others:
+                amt = other.get('amount', 0) if isinstance(other, dict) else getattr(other, 'amount', 0)
+                if amt > 0:
+                    label = other.get('label', 'Other') if isinstance(other, dict) else getattr(other, 'label', 'Other')
+                    lib_data.append([label, format_currency(amt)])
+                    total_lib += amt
+        lib_data.append(["TOTAL LIABILITIES", format_currency(total_lib)])
+        add_table("1.7 Liabilities", lib_data)
+
+        # 2. Net Worth
+        add_table("2. Net Worth Summary", [
+            ["Particulars", "Value"],
+            ["Total Assets", format_currency(total_ast)],
+            ["Total Liabilities", format_currency(total_lib)],
+            ["NET WORTH", format_currency(total_ast - total_lib)]
+        ])
+
+        # 3. Insurance
+        ins = profile.insurance
+        add_table("3. Insurance Coverage", [
+            ["Type", "Coverage", "Premium"],
+            ["Life", format_currency(ins.get('life_cover')), format_currency(ins.get('life_premium'))],
+            ["Medical", format_currency(ins.get('med_cover')), format_currency(ins.get('med_premium'))],
+            ["Vehicle", format_currency(ins.get('veh_cover')), format_currency(ins.get('veh_premium'))]
         ])
 
         # 4. HLV
         hlv = result.hlv_data
-        add_table("4. Human Life Value", [
+        add_table("4. Human Life Value Analysis", [
             ["Method", "Gross HLV", "Additional Cover Needed"],
-            ["Income Replacement", format_currency(hlv.get('hlv_income_method')), format_currency(hlv.get('additional_life_cover_needed_income'))],
-            ["Need Based", format_currency(hlv.get('hlv_expense_method')), format_currency(hlv.get('additional_life_cover_needed_expense'))]
+            ["Income Method", format_currency(hlv.get('hlv_income_method')), format_currency(hlv.get('additional_life_cover_needed_income'))],
+            ["Expense Method", format_currency(hlv.get('hlv_expense_method')), format_currency(hlv.get('additional_life_cover_needed_expense'))]
         ])
 
         # 6. Retirement
         ret = result.calculations
-        add_table("6. Retirement Analysis", [
+        add_table("6. Retirement Corpus Analysis", [
             ["Particulars", "Value"],
             ["Corpus Needed", format_currency(ret.get('retirement_corpus_at_retirement'))],
-            ["Monthly Investment", format_currency(ret.get('monthly_investment_retirement'))],
-            ["Readiness", f"{ret.get('retirement_readiness', 0)}%"]
+            ["Existing Savings FV", format_currency(ret.get('future_value_existing_savings'))],
+            ["Net Corpus Needed", format_currency(ret.get('net_retirement_corpus_needed'))],
+            ["Monthly Investment", format_currency(ret.get('monthly_investment_retirement'))]
         ])
+
+        # 7. Cash Flow
+        if result.cash_flow_analysis:
+            cf_data = [["Year", "Age", "Opening Bal", "Growth", "Withdrawal", "Closing Bal"]]
+            for row in result.cash_flow_analysis:
+                cf_data.append([str(row['year']), str(row['retirement_age_year']), format_currency(row['opening_balance']), 
+                                format_currency(row['investment_growth']), format_currency(row['annual_withdrawal']), format_currency(row['closing_balance'])])
+            add_table("7. Retirement Cash Flow Analysis", cf_data)
 
         # 10. Summary
         add_table("10. Monthly Investment Summary", [
@@ -550,8 +644,18 @@ class FinancialReportGenerator:
             ["TOTAL (Income Method)", format_currency(ret.get('total_monthly_investment_income'))]
         ])
 
+        # 12. Health Score
+        score_details = result.calculations.get('financial_health_score_details', [])
+        if score_details:
+            score_data = [["Component", "Status", "Points"]]
+            for comp, stat, pts in score_details:
+                score_data.append([comp, str(stat), str(pts)])
+            score_data.append(["TOTAL SCORE", "", f"{result.financial_health_score}/100"])
+            add_table("12. Financial Health Score", score_data)
+
+        # 13. Conclusion
         if not profile.exclude_ai and result.ai_analysis and 'overall_conclusion' in result.ai_analysis:
-            doc.add_heading("13. AI Conclusion", level=1)
+            doc.add_heading("13. Overall Conclusion", level=1)
             conc = re.sub(r'<[^>]*>', '', result.ai_analysis['overall_conclusion'])
             doc.add_paragraph(conc)
 
