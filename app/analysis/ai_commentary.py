@@ -42,46 +42,46 @@ class SystemCommentaryGenerator:
     @staticmethod
     def generate_hlv_comments(hlv_income, net_hlv, existing_assets,
                               current_liabilities, current_cover) -> list:
-        """Generate 4 AI comments for HLV analysis."""
+        """Generate 4 comments for HLV analysis."""
         return [
-            f"<strong>AI Insight #1:</strong> The gross HLV of Rs {hlv_income:,} represents 10.2 years of income replacement.",
-            f"<strong>AI Insight #2:</strong> Existing financial assets of Rs {existing_assets:,} provide a 23% buffer against total protection needs, resulting in net insurance requirement of Rs {net_hlv:,}.",
-            f"<strong>AI Insight #3:</strong> Current liabilities of Rs {current_liabilities:,} are factored into the net HLV calculation.",
-            f"<strong>AI Insight #4:</strong> The current life cover of Rs {current_cover:,} addresses 42% of the identified gap based on income replacement method.",
+            f"<strong>Insight 1:</strong> The gross HLV of Rs {hlv_income:,} represents 10.2 years of income replacement.",
+            f"<strong>Insight 2:</strong> Existing financial assets of Rs {existing_assets:,} provide a 23% buffer against total protection needs, resulting in net insurance requirement of Rs {net_hlv:,}.",
+            f"<strong>Insight 3:</strong> Current liabilities of Rs {current_liabilities:,} are factored into the net HLV calculation.",
+            f"<strong>Insight 4:</strong> The current life cover of Rs {current_cover:,} addresses 42% of the identified gap based on income replacement method.",
         ]
 
     @staticmethod
     def generate_medical_comments(medical_retirement, coverage_retirement,
                                   balance_needed, medical_life_expectancy,
                                   balance_needed_life_expectancy) -> list:
-        """Generate 4 AI comments for medical analysis with life expectancy."""
+        """Generate 4 comments for medical analysis with life expectancy."""
         return [
-            f"<strong>AI Insight #1:</strong> Future medical cover requirement at retirement is Rs {medical_retirement:,}, representing the future value of current medical cover adjusted for medical inflation.",
-            f"<strong>AI Insight #2:</strong> Projected coverage accumulation of Rs {coverage_retirement:,} addresses 65% of total needs, leaving a gap of Rs {balance_needed:,}.",
-            f"<strong>AI Insight #3:</strong> The medical inflation assumption of 10% annually is incorporated into healthcare cost projections.",
-            f"<strong>AI Insight #4:</strong> Net medical corpus required at life expectancy age is Rs {balance_needed_life_expectancy:,}.",
+            f"<strong>Insight 1:</strong> Future medical cover requirement at retirement is Rs {medical_retirement:,}, representing the future value of current medical cover adjusted for medical inflation.",
+            f"<strong>Insight 2:</strong> Projected coverage accumulation of Rs {coverage_retirement:,} addresses 65% of total needs, leaving a gap of Rs {balance_needed:,}.",
+            f"<strong>Insight 3:</strong> The medical inflation assumption of 10% annually is incorporated into healthcare cost projections.",
+            f"<strong>Insight 4:</strong> Net medical corpus required at life expectancy age is Rs {balance_needed_life_expectancy:,}.",
         ]
 
     @staticmethod
     def generate_retirement_comments(corpus_retirement, monthly_investment,
                                      years_remaining, readiness_score) -> list:
-        """Generate 4 AI comments for retirement analysis."""
+        """Generate 4 comments for retirement analysis."""
         return [
-            f"<strong>AI Insight #1:</strong> Retirement corpus requirement of Rs {corpus_retirement:,} assumes lifestyle maintenance at 80% of pre-retirement expenses.",
-            f"<strong>AI Insight #2:</strong> Monthly investment requirement of Rs {monthly_investment:,} represents 22% of current income.",
-            f"<strong>AI Insight #3:</strong> With {years_remaining} years remaining until retirement, the compounding period is factored into calculations.",
-            f"<strong>AI Insight #4:</strong> Retirement readiness score of {readiness_score}% indicates current progress toward retirement corpus.",
+            f"<strong>Insight 1:</strong> Retirement corpus requirement of Rs {corpus_retirement:,} assumes lifestyle maintenance at 80% of pre-retirement expenses.",
+            f"<strong>Insight 2:</strong> Monthly investment requirement of Rs {monthly_investment:,} represents 22% of current income.",
+            f"<strong>Insight 3:</strong> With {years_remaining} years remaining until retirement, the compounding period is factored into calculations.",
+            f"<strong>Insight 4:</strong> Retirement readiness score of {readiness_score}% indicates current progress toward retirement corpus.",
         ]
 
     @staticmethod
     def generate_child_goal_comments(education_future, marriage_future,
                                      monthly_investment_edu,
                                      monthly_investment_marriage) -> list:
-        """Generate 3 AI comments for child goal analysis."""
+        """Generate 3 comments for child goal analysis."""
         return [
-            f"<strong>AI Insight #1:</strong> Future education corpus requirement of Rs {education_future:,} reflects projected education inflation of 8-10% annually.",
-            f"<strong>AI Insight #2:</strong> Future marriage corpus of Rs {marriage_future:,} incorporates anticipated inflation in wedding-related expenses.",
-            f"<strong>AI Insight #3:</strong> Combined monthly investments of Rs {monthly_investment_edu:,} (education) and Rs {monthly_investment_marriage:,} (marriage) are calculated based on goal time horizons.",
+            f"<strong>Insight 1:</strong> Future education corpus requirement of Rs {education_future:,} reflects projected education inflation of 8-10% annually.",
+            f"<strong>Insight 2:</strong> Future marriage corpus of Rs {marriage_future:,} incorporates anticipated inflation in wedding-related expenses.",
+            f"<strong>Insight 3:</strong> Combined monthly investments of Rs {monthly_investment_edu:,} (education) and Rs {monthly_investment_marriage:,} (marriage) are calculated based on goal time horizons.",
         ]
 
     @staticmethod
@@ -90,24 +90,24 @@ class SystemCommentaryGenerator:
                                              monthly_medical_life_expectancy) -> list:
         """Generate comments on monthly investment summary."""
         return [
-            f"<strong>AI Insight #1:</strong> Total monthly investment requirement using Income Method is Rs {total_income_method:,}, while Expense Method requires Rs {total_expense_method:,}.",
-            f"<strong>AI Insight #2:</strong> Medical coverage at retirement age requires Rs {monthly_medical_retirement:,}/month, while life expectancy age coverage requires Rs {monthly_medical_life_expectancy:,}/month.",
-            "<strong>AI Insight #3:</strong> Medical coverage strategy combines insurance with systematic savings for future corpus accumulation.",
-            "<strong>AI Insight #4:</strong> Health Savings Accounts (HSAs) offer tax advantages for medical corpus building.",
+            f"<strong>Insight 1:</strong> Total monthly investment requirement using Income Method is Rs {total_income_method:,}, while Expense Method requires Rs {total_expense_method:,}.",
+            f"<strong>Insight 2:</strong> Medical coverage at retirement age requires Rs {monthly_medical_retirement:,}/month, while life expectancy age coverage requires Rs {monthly_medical_life_expectancy:,}/month.",
+            "<strong>Insight 3:</strong> Medical coverage strategy combines insurance with systematic savings for future corpus accumulation.",
+            "<strong>Insight 4:</strong> Health Savings Accounts (HSAs) offer tax advantages for medical corpus building.",
         ]
 
     @staticmethod
     def generate_cash_flow_analysis() -> list:
         """Generate 9-point cash flow analysis commentary."""
         return [
-            "<strong>Point 1:</strong> Initial retirement corpus is calibrated to support inflation-adjusted withdrawals.",
-            "<strong>Point 2:</strong> Annual withdrawal amounts increase progressively at assumed inflation rate.",
-            "<strong>Point 3:</strong> Investment growth during retirement years utilizes a conservative 8% return assumption.",
-            "<strong>Point 4:</strong> Portfolio depletion is mathematically engineered to reach zero balance at life expectancy.",
-            "<strong>Point 5:</strong> Year-over-year balance tracking reveals withdrawal rates between 4-5% of corpus.",
-            "<strong>Point 6:</strong> The analysis incorporates longevity risk considerations.",
-            "<strong>Point 7:</strong> Cash flow sequencing addresses sequence-of-returns considerations.",
-            "<strong>Point 8:</strong> Terminal year adjustments ensure complete fund utilization.",
+            "<strong>Insight 1:</strong> Initial retirement corpus is calibrated to support inflation-adjusted withdrawals.",
+            "<strong>Insight 2:</strong> Annual withdrawal amounts increase progressively at assumed inflation rate.",
+            "<strong>Insight 3:</strong> Investment growth during retirement years utilizes a conservative 8% return assumption.",
+            "<strong>Insight 4:</strong> Portfolio depletion is mathematically engineered to reach zero balance at life expectancy.",
+            "<strong>Insight 5:</strong> Year-over-year balance tracking reveals withdrawal rates between 4-5% of corpus.",
+            "<strong>Insight 6:</strong> The analysis incorporates longevity risk considerations.",
+            "<strong>Insight 7:</strong> Cash flow sequencing addresses sequence-of-returns considerations.",
+            "<strong>Insight 8:</strong> Terminal year adjustments ensure complete fund utilization.",
             "<strong>Balance Growth Explanation:</strong> The balance grows in initial years due to compounding investment returns exceeding withdrawals, then declines as inflation-adjusted withdrawals increase over time.",
         ]
 
@@ -123,7 +123,7 @@ class SystemCommentaryGenerator:
         safe_years = max(1, years_to_retirement)
         return f"""
         <div class="analysis-card" style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); border-left: 4px solid #ca8a04;">
-            <h4 style="color: #854d0e;"><strong>SYSTEM-GENERATED OVERALL CONCLUSION (300 WORDS)</strong></h4>
+            <h4 style="color: #854d0e;"><strong>SYSTEM-GENERATED OVERALL CONCLUSION</strong></h4>
 
             <h5><strong>FINANCIAL GOALS SUMMARY</strong></h5>
             <p>This analysis presents a comprehensive evaluation of financial objectives. Current health score of {financial_score}/100 reflects the assessed position across multiple financial dimensions. Insurance protection evaluation indicates gaps of Rs {min(hlv_gap_income, hlv_gap_expense):,} based on selected methodology. Medical inflation at 10% annually versus general inflation at 6% creates differential in healthcare purchasing power projections. Retirement corpus assessment shows gap of Rs {retirement_gap:,} requiring systematic monthly investments over {max(0, retirement_gap // safe_years):,} years. Child education (Rs {child_education_gap:,}) and marriage (Rs {child_marriage_gap:,}) gaps are presented with corresponding time horizons. Current Rs {net_worth:,} net worth and {savings_rate}% savings rate form the foundation for financial planning.</p>
@@ -134,7 +134,7 @@ class SystemCommentaryGenerator:
             <h5><strong>FINANCIAL POSITION OVERVIEW</strong></h5>
             <p>This analysis provides a structured overview of the current financial position. Insurance protection gaps are quantified using standard actuarial methods. Medical expense projections incorporate healthcare-specific inflation assumptions. Retirement planning calculations utilize pre and post-retirement return rates. Child goal funding requirements are adjusted for inflation over specified time horizons. Emergency fund adequacy is measured against standard financial planning benchmarks.</p>
 
-            <p><em>This 300-word conclusion synthesizes the findings from the comprehensive financial analysis based on client-provided information.</em></p>
+            <p><em>This conclusion synthesizes the findings from the comprehensive financial analysis based on client-provided information.</em></p>
         </div>
         """
 
