@@ -14,17 +14,6 @@ from app.models.user import User
 router = APIRouter()
 ia_service = IAMasterService()
 
-@router.get("/validate/{ia_number}", response_model=IANumberValidationResponse)
-def validate_ia_number(
-    ia_number: str,
-    connector_id: uuid.UUID,
-    db: Session = Depends(get_db), # We still need main db to check connector
-    current_user: User = Depends(get_current_user)
-):
-    # This endpoint is currently a placeholder for cross-validation 
-    # between main and remote databases if needed.
-    raise HTTPException(status_code=501, detail="Not implemented. Use /validate-remote/")
-
 @router.get("/validate-remote/{ia_number}", response_model=IANumberValidationResponse)
 def validate_ia_number_remote(
     ia_number: str,
@@ -76,48 +65,65 @@ async def create_ia_entry(
             "bank_branch": bank_branch,
             "ifsc_code": ifsc_code
         }
-        
         employees_data = json.loads(employees_json)
-        
         db_ia = await ia_service.create_ia_entry(
-            db=db,
-            ia_data=ia_data,
-            employees_data=employees_data,
-            ia_cert=ia_certificate,
-            ia_sig=ia_signature,
-            ia_logo=ia_logo,
-            employee_certs=employee_certificates,
-            tenant_id=current_user.tenant_id,
-            user_ip=None, 
-            user_agent=None
+            db=db, ia_data=ia_data, employees_data=employees_data,
+            ia_cert=ia_certificate, ia_sig=ia_signature, ia_logo=ia_logo,
+            employee_certs=employee_certificates, tenant_id=current_user.tenant_id
         )
-        
-        # Sign URLs for immediate frontend use
+        await ia_service.sign_file_urls(db_ia, db)
+        return db_ia
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.patch("/{ia_id}", response_model=IAMasterRead)
+async def update_ia_entry(
+    ia_id: uuid.UUID,
+    name_of_ia: str = Form(None),
+    nature_of_entity: str = Form(None),
+    name_of_entity: Optional[str] = Form(None),
+    ia_registration_number: str = Form(None),
+    date_of_registration: str = Form(None),
+    date_of_registration_expiry: str = Form(None),
+    registered_address: str = Form(None),
+    registered_contact_number: str = Form(None),
+    office_contact_number: Optional[str] = Form(None),
+    registered_email_id: str = Form(None),
+    cin_number: Optional[str] = Form(None),
+    bank_account_number: str = Form(None),
+    bank_name: str = Form(None),
+    bank_branch: str = Form(None),
+    ifsc_code: str = Form(None),
+    employees_json: str = Form("[]"),
+    ia_certificate: Optional[UploadFile] = File(None),
+    ia_signature: Optional[UploadFile] = File(None),
+    ia_logo: Optional[UploadFile] = File(None),
+    employee_certificates: List[UploadFile] = File([]),
+    db: Session = Depends(get_remote_session),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        ia_data = {
+            k: v for k, v in {
+                "name_of_ia": name_of_ia, "nature_of_entity": nature_of_entity,
+                "name_of_entity": name_of_entity, "ia_registration_number": ia_registration_number,
+                "date_of_registration": date_of_registration, "date_of_registration_expiry": date_of_registration_expiry,
+                "registered_address": registered_address, "registered_contact_number": registered_contact_number,
+                "office_contact_number": office_contact_number, "registered_email_id": registered_email_id,
+                "cin_number": cin_number, "bank_account_number": bank_account_number,
+                "bank_name": bank_name, "bank_branch": bank_branch, "ifsc_code": ifsc_code
+            }.items() if v is not None
+        }
+        employees_data = json.loads(employees_json)
+        db_ia = await ia_service.update_ia_entry(
+            db=db, ia_id=ia_id, ia_data=ia_data, employees_data=employees_data,
+            ia_cert=ia_certificate, ia_sig=ia_signature, ia_logo=ia_logo,
+            employee_certs=employee_certificates
+        )
         await ia_service.sign_file_urls(db_ia, db)
         return db_ia
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
-
-@router.get("/latest", response_model=Optional[IAMasterRead])
-async def get_latest_ia(
-    db: Session = Depends(get_remote_session),
-    current_user: User = Depends(get_current_user)
-):
-    return await ia_service.get_latest_ia(db)
-
-@router.get("/list", response_model=IAMasterListResponse)
-async def get_all_ias(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_remote_session),
-    current_user: User = Depends(get_current_user)
-):
-    # In a real app we might check if user is super admin here.
-    return await ia_service.get_all_ias(db, skip=skip, limit=limit)
 
 @router.patch("/{ia_id}/client-permit", response_model=IAMasterRead)
 async def update_client_permit(
@@ -133,17 +139,18 @@ async def update_client_permit(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/latest", response_model=Optional[IAMasterRead])
+async def get_latest_ia(db: Session = Depends(get_remote_session), current_user: User = Depends(get_current_user)):
+    return await ia_service.get_latest_ia(db)
+
+@router.get("/list", response_model=IAMasterListResponse)
+async def get_all_ias(skip: int = 0, limit: int = 100, db: Session = Depends(get_remote_session), current_user: User = Depends(get_current_user)):
+    return await ia_service.get_all_ias(db, skip=skip, limit=limit)
+
 @router.get("/{ia_id}/pdf")
-async def download_ia_pdf(
-    ia_id: uuid.UUID,
-    db: Session = Depends(get_remote_session)
-):
+async def download_ia_pdf(ia_id: uuid.UUID, db: Session = Depends(get_remote_session)):
     try:
         pdf_bytes, filename = await ia_service.generate_pdf(db, ia_id)
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
-        )
+        return Response(content=pdf_bytes, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename={filename}"})
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
