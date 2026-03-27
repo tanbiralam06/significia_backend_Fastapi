@@ -350,7 +350,7 @@ class FinancialReportGenerator:
         elements.append(t)
         elements.append(PageBreak())
 
-        # 3. AI Executive Brief
+        # 3. Executive Brief
         if not profile.exclude_ai and result.ai_analysis and 'executive_brief' in result.ai_analysis:
             elements.append(Paragraph('Executive Summary & Insights', section_style))
             brief = result.ai_analysis['executive_brief']
@@ -377,9 +377,10 @@ class FinancialReportGenerator:
 
         #HLV Comments
         if not profile.exclude_ai and result.ai_analysis and 'hlv_comments' in result.ai_analysis:
-            elements.append(Paragraph('System Insights (HLV):', subsection_style))
+            elements.append(Paragraph('Insights (HLV):', subsection_style))
             for comment in result.ai_analysis['hlv_comments']:
-                elements.append(Paragraph(f"• {comment}", normal_style))
+                clean_comment = comment.replace('AI Insight', 'Insight').replace('<strong>Insight', '<strong>Insight')
+                elements.append(Paragraph(f"• {clean_comment}", normal_style))
             elements.append(Spacer(1, 6))
 
         # 5. Medical
@@ -398,9 +399,10 @@ class FinancialReportGenerator:
 
         # AI Medical Comments
         if not profile.exclude_ai and result.ai_analysis and 'medical_comments' in result.ai_analysis:
-            elements.append(Paragraph('System Insights (Medical):', subsection_style))
+            elements.append(Paragraph('Insights (Medical):', subsection_style))
             for comment in result.ai_analysis['medical_comments']:
-                elements.append(Paragraph(f"• {comment}", normal_style))
+                clean_comment = comment.replace('AI Insight', 'Insight')
+                elements.append(Paragraph(f"• {clean_comment}", normal_style))
             elements.append(Spacer(1, 6))
 
         # 6. Retirement
@@ -419,9 +421,10 @@ class FinancialReportGenerator:
 
         # AI Retirement Comments
         if not profile.exclude_ai and result.ai_analysis and 'retirement_comments' in result.ai_analysis:
-            elements.append(Paragraph('System Insights (Retirement):', subsection_style))
+            elements.append(Paragraph('Insights (Retirement):', subsection_style))
             for comment in result.ai_analysis['retirement_comments']:
-                elements.append(Paragraph(f"• {comment}", normal_style))
+                clean_comment = comment.replace('AI Insight', 'Insight')
+                elements.append(Paragraph(f"• {clean_comment}", normal_style))
             elements.append(Spacer(1, 6))
 
         # 7. Cash Flow Table
@@ -518,7 +521,7 @@ class FinancialReportGenerator:
         elements.append(t)
         elements.append(Spacer(1, 12))
 
-        # 13. System Conclusion
+        # 13. Conclusion
         if not profile.exclude_ai and result.ai_analysis and 'overall_conclusion' in result.ai_analysis:
             elements.append(Paragraph('13. OVERALL CONCLUSION', section_style))
             conc = result.ai_analysis['overall_conclusion']

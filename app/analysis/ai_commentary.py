@@ -22,7 +22,7 @@ class SystemCommentaryGenerator:
         """Generate 300-word executive brief — informational only, no forecasting."""
         return f"""
         <div class="analysis-card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9;">
-            <h4 style="color: #0369a1;"><strong>SYSTEM-GENERATED EXECUTIVE BRIEF (300 WORDS)</strong></h4>
+            <h4 style="color: #0369a1;"><strong>EXECUTIVE BRIEF</strong></h4>
             <p><strong>Prepared for:</strong> {client_name}</p>
             <p><strong>Analysis Date:</strong> {datetime.now().strftime("%d %B, %Y")}</p>
 
@@ -123,7 +123,7 @@ class SystemCommentaryGenerator:
         safe_years = max(1, years_to_retirement)
         return f"""
         <div class="analysis-card" style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); border-left: 4px solid #ca8a04;">
-            <h4 style="color: #854d0e;"><strong>SYSTEM-GENERATED OVERALL CONCLUSION</strong></h4>
+            <h4 style="color: #854d0e;"><strong>OVERALL CONCLUSION</strong></h4>
 
             <h5><strong>FINANCIAL GOALS SUMMARY</strong></h5>
             <p>This analysis presents a comprehensive evaluation of financial objectives. Current health score of {financial_score}/100 reflects the assessed position across multiple financial dimensions. Insurance protection evaluation indicates gaps of Rs {min(hlv_gap_income, hlv_gap_expense):,} based on selected methodology. Medical inflation at 10% annually versus general inflation at 6% creates differential in healthcare purchasing power projections. Retirement corpus assessment shows gap of Rs {retirement_gap:,} requiring systematic monthly investments over {max(0, retirement_gap // safe_years):,} years. Child education (Rs {child_education_gap:,}) and marriage (Rs {child_marriage_gap:,}) gaps are presented with corresponding time horizons. Current Rs {net_worth:,} net worth and {savings_rate}% savings rate form the foundation for financial planning.</p>
