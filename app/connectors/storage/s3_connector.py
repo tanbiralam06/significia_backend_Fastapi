@@ -90,7 +90,9 @@ class S3Storage(BaseStorage):
             self.s3_client.list_objects_v2(Bucket=self.bucket_name, MaxKeys=1)
             return True
         except Exception as e:
-            print(f"S3 connection test failed: {e}")
+            print(f"DEBUG - S3 connection test failed: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     async def download_file(self, remote_path: str) -> Optional[bytes]:

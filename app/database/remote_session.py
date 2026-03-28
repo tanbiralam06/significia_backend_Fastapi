@@ -67,10 +67,11 @@ def get_remote_session(
         )
         
         RemoteSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-        session = RemoteSessionLocal()
-        try:
-            yield session
-        finally:
-            session.close()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to connect to remote database: {str(e)}")
+
+    session = RemoteSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()

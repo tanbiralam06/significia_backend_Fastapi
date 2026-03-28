@@ -51,8 +51,8 @@ class StorageService:
             tenant_id=tenant_id
         )
         db.add(db_connector)
-        db.commit()
-        db.refresh(db_connector)
+        # We don't commit here anymore, let the router handle it
+        db.flush() 
         return db_connector
 
     @staticmethod
@@ -88,9 +88,7 @@ class StorageService:
             from datetime import datetime
             connector_record.status = "READY"
             connector_record.verified_at = datetime.utcnow()
-            db.commit()
             return True
         
         connector_record.status = "FAILED"
-        db.commit()
         return False
