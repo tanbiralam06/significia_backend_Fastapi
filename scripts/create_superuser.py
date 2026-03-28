@@ -66,9 +66,13 @@ def create_superuser(email: str, password: str):
         db.close()
 
 if __name__ == "__main__":
-    SUPERUSER_EMAIL = "alamtanbir@gmail.com"
-    SUPERUSER_PASSWORD = "T@nbir#2026"
+    import argparse
+    parser = argparse.ArgumentParser(description="Create a Significia Super User")
+    parser.add_argument("--email", help="Email for the super user", default="alamtanbir@gmail.com")
+    parser.add_argument("--password", help="Password for the super user", default="T@nbir#2026")
     
-    print(f"--- Starting Super User Creation for {SUPERUSER_EMAIL} ---")
-    create_superuser(SUPERUSER_EMAIL, SUPERUSER_PASSWORD)
+    args = parser.parse_args()
+    
+    print(f"--- Starting Super User Creation for {args.email} ---")
+    create_superuser(args.email, args.password)
     print("--- Finished ---")
