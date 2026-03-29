@@ -20,9 +20,38 @@ from sqlalchemy import select
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement, ns
 from app.services.questionnaire_constants import QUESTIONNAIRE_DATA
 
 class ReportService:
+    @staticmethod
+    def _draw_footer(canvas, doc):
+        canvas.saveState()
+        # Header text
+        canvas.setFont('Helvetica-Bold', 8)
+        canvas.setFillColor(colors.grey)
+        canvas.drawRightString(letter[0] - 0.5*inch, letter[1] - 0.5*inch, "STRICTLY CONFIDENTIAL")
+        
+        # Footer text
+        canvas.setFont('Helvetica', 8)
+        canvas.drawCentredString(letter[0]/2, 0.5*inch, f"Page {doc.page}")
+        canvas.restoreState()
+
+    @staticmethod
+    def _add_page_number(run):
+        fldChar = OxmlElement('w:fldChar')
+        fldChar.set(ns.qn('w:fldCharType'), 'begin')
+        run._r.append(fldChar)
+
+        instrText = OxmlElement('w:instrText')
+        instrText.set(ns.qn('xml:space'), 'preserve')
+        instrText.text = "PAGE"
+        run._r.append(instrText)
+
+        fldChar = OxmlElement('w:fldChar')
+        fldChar.set(ns.qn('w:fldCharType'), 'end')
+        run._r.append(fldChar)
+
     @staticmethod
     def generate_risk_profile_pdf(db: Session, assessment_id: uuid.UUID) -> BytesIO:
         # 1. Fetch Assessment and related data
@@ -210,19 +239,48 @@ class ReportService:
         
         # 6. Recommendation and Notes
         story.append(Paragraph("ADVISOR RECOMMENDATION", heading_style))
+        story.append(Paragraph(f"<b>Classification:</b> {assessment.assigned_risk_tier}", normal_style))
         story.append(Paragraph(assessment.tier_recommendation or "No recommendation provided.", normal_style))
+        
+        # Add free space for manual recommendation
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("Additional Advisor Guidance:", bold_style))
+        story.append(Spacer(1, 60)) # Free space for manual writing
+        story.append(Paragraph("__________________________________________________________________________________________", normal_style))
+        story.append(Spacer(1, 20))
         
         if assessment.discussion_notes:
             story.append(Paragraph("DISCUSSION NOTES", heading_style))
-            story.append(Paragraph(assessment.discussion_notes, normal_style))
+            # Convert newlines for ReportLab Paragraph
+            notes_html = assessment.discussion_notes.replace('\n', '<br/>')
+            story.append(Paragraph(notes_html, normal_style))
 
         if assessment.disclaimer_text:
             story.append(Spacer(1, 20))
             story.append(Paragraph("DISCLAIMER", bold_style))
-            story.append(Paragraph(assessment.disclaimer_text, ParagraphStyle('Disc', parent=normal_style, fontSize=7, textColor=colors.grey)))
+            # Convert newlines for ReportLab Paragraph
+            discl_html = assessment.disclaimer_text.replace('\n', '<br/>')
+            story.append(Paragraph(discl_html, ParagraphStyle('Disc', parent=normal_style, fontSize=7, textColor=colors.grey)))
 
-        # 7. Build PDF
-        doc.build(story)
+        # 7. Signature Section
+        story.append(Spacer(1, 40))
+        sig_date = assessment.assessment_timestamp.strftime("%Y-%m-%d")
+        
+        sig_data = [
+            [Paragraph("<b>__________________________</b><br/>Client Signature", normal_style), 
+             Paragraph("<b>__________________________</b><br/>IA Advisor Signature", normal_style)],
+            [Paragraph(f"Date: {sig_date}", normal_style),
+             Paragraph(f"Date: {sig_date}", normal_style)]
+        ]
+        sig_table = Table(sig_data, colWidths=[3*inch, 3*inch])
+        sig_table.setStyle(TableStyle([
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ]))
+        story.append(sig_table)
+
+        # 8. Build PDF
+        doc.build(story, onFirstPage=ReportService._draw_footer, onLaterPages=ReportService._draw_footer)
         buffer.seek(0)
         return buffer
 
@@ -252,9 +310,24 @@ class ReportService:
         style.font.name = 'Arial'
         style.font.size = Pt(10)
 
-        # 3. Header
-        header = doc.add_heading('RISK PROFILING REPORT', 0)
-        header.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # 3. Header and Footer (Strictly Confidential & Page Numbers)
+        section = doc.sections[0]
+        header = section.header
+        header_p = header.paragraphs[0]
+        header_p.text = "STRICTLY CONFIDENTIAL"
+        header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        header_p.style.font.bold = True
+        header_p.style.font.size = Pt(8)
+
+        footer = section.footer
+        footer_p = footer.paragraphs[0]
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = footer_p.add_run("Page ")
+        ReportService._add_page_number(footer_p.add_run())
+
+        # 4. Header
+        header_title = doc.add_heading('RISK PROFILING REPORT', 0)
+        header_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # 4. Summary Table
         doc.add_heading('ASSESSMENT SUMMARY', level=1)
@@ -335,20 +408,56 @@ class ReportService:
 
         # 6. Recommendation and Notes
         doc.add_heading('ADVISOR RECOMMENDATION', level=1)
+        p = doc.add_paragraph()
+        p.add_run("Classification: ").bold = True
+        p.add_run(assessment.assigned_risk_tier)
+        
         doc.add_paragraph(assessment.tier_recommendation or "No recommendation provided.")
+        
+        # Add free space for manual recommendation
+        doc.add_paragraph().add_run().add_break()
+        p = doc.add_paragraph()
+        p.add_run("Additional Advisor Guidance:").bold = True
+        for _ in range(4):
+            doc.add_paragraph("__________________________________________________________________________________________")
         
         if assessment.discussion_notes:
             doc.add_heading('DISCUSSION NOTES', level=1)
-            doc.add_paragraph(assessment.discussion_notes)
+            p = doc.add_paragraph()
+            lines = assessment.discussion_notes.split('\n')
+            for i, line in enumerate(lines):
+                p.add_run(line)
+                if i < len(lines) - 1:
+                    p.add_run().add_break()
 
         if assessment.disclaimer_text:
             doc.add_paragraph()
             p = doc.add_paragraph()
             run = p.add_run("DISCLAIMER: ")
             run.bold = True
-            p.add_run(assessment.disclaimer_text)
+            lines = assessment.disclaimer_text.split('\n')
+            for i, line in enumerate(lines):
+                p.add_run(line)
+                if i < len(lines) - 1:
+                    p.add_run().add_break()
 
-        # 7. Save to Buffer
+        # 7. Signature Section
+        doc.add_paragraph().add_run().add_break()
+        doc.add_paragraph().add_run().add_break()
+        
+        sig_table = doc.add_table(rows=2, cols=2)
+        sig_table.width = Inches(6)
+        
+        cells = sig_table.rows[0].cells
+        cells[0].text = "__________________________\nClient Signature"
+        cells[1].text = "__________________________\nIA Advisor Signature"
+        
+        sig_date = assessment.assessment_timestamp.strftime("%Y-%m-%d")
+        cells = sig_table.rows[1].cells
+        cells[0].text = f"Date: {sig_date}"
+        cells[1].text = f"Date: {sig_date}"
+
+        # 8. Save to Buffer
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
