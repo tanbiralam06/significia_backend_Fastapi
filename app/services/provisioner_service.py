@@ -75,6 +75,51 @@ class ProvisionerService:
             engine.execute_query("ALTER TABLE significia_core.financial_analysis_profiles ADD COLUMN IF NOT EXISTS pan VARCHAR(20);")
             engine.execute_query("ALTER TABLE significia_core.financial_analysis_profiles ADD COLUMN IF NOT EXISTS contact VARCHAR(20);")
             engine.execute_query("ALTER TABLE significia_core.financial_analysis_profiles ADD COLUMN IF NOT EXISTS email VARCHAR(100);")
+            
+            # 1. Create Risk Profile Tables if missing
+            create_risk_assessments = """
+            CREATE TABLE IF NOT EXISTS significia_core.risk_assessments (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+                q1_interest_choice VARCHAR(10) NOT NULL,
+                q2_importance_factors JSONB NOT NULL,
+                q3_probability_bet VARCHAR(10) NOT NULL,
+                q4_portfolio_choice VARCHAR(10) NOT NULL,
+                q5_loss_behavior VARCHAR(10) NOT NULL,
+                q6_market_reaction VARCHAR(10) NOT NULL,
+                q7_fund_selection VARCHAR(10) NOT NULL,
+                q8_experience_level VARCHAR(10) NOT NULL,
+                q9_time_horizon VARCHAR(10) NOT NULL,
+                q10_net_worth VARCHAR(10) NOT NULL,
+                q11_age_range VARCHAR(10) NOT NULL,
+                q12_income_range VARCHAR(10) NOT NULL,
+                q13_expense_range VARCHAR(10) NOT NULL,
+                q14_dependents VARCHAR(10) NOT NULL,
+                q15_active_loan VARCHAR(10) NOT NULL,
+                q16_investment_objective VARCHAR(10) NOT NULL,
+                calculated_score INTEGER NOT NULL,
+                assigned_risk_tier VARCHAR(100) NOT NULL,
+                tier_recommendation TEXT,
+                disclaimer_text TEXT,
+                discussion_notes TEXT,
+                question_scores JSONB NOT NULL,
+                assessment_timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            engine.execute_query(create_risk_assessments)
+
+            create_client_risk_master = """
+            CREATE TABLE IF NOT EXISTS significia_core.client_risk_master (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+                ia_registration_number VARCHAR(100) NOT NULL,
+                category_name VARCHAR(100) NOT NULL,
+                portfolio_name VARCHAR(100) NOT NULL,
+                submitted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+            engine.execute_query(create_client_risk_master)
         except Exception as e:
             print(f"Migration patching failed: {e}")
 
@@ -319,3 +364,51 @@ class ProvisionerService:
         CREATE INDEX IF NOT EXISTS idx_fa_results_client ON significia_core.financial_analysis_results(client_id);
         """
         engine.execute_query(create_fa_results)
+
+        # Create Risk Profile Assessment Table
+        create_risk_assessments = """
+        CREATE TABLE IF NOT EXISTS significia_core.risk_assessments (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+            q1_interest_choice VARCHAR(10) NOT NULL,
+            q2_importance_factors JSONB NOT NULL,
+            q3_probability_bet VARCHAR(10) NOT NULL,
+            q4_portfolio_choice VARCHAR(10) NOT NULL,
+            q5_loss_behavior VARCHAR(10) NOT NULL,
+            q6_market_reaction VARCHAR(10) NOT NULL,
+            q7_fund_selection VARCHAR(10) NOT NULL,
+            q8_experience_level VARCHAR(10) NOT NULL,
+            q9_time_horizon VARCHAR(10) NOT NULL,
+            q10_net_worth VARCHAR(10) NOT NULL,
+            q11_age_range VARCHAR(10) NOT NULL,
+            q12_income_range VARCHAR(10) NOT NULL,
+            q13_expense_range VARCHAR(10) NOT NULL,
+            q14_dependents VARCHAR(10) NOT NULL,
+            q15_active_loan VARCHAR(10) NOT NULL,
+            q16_investment_objective VARCHAR(10) NOT NULL,
+            calculated_score INTEGER NOT NULL,
+            assigned_risk_tier VARCHAR(100) NOT NULL,
+            tier_recommendation TEXT,
+            disclaimer_text TEXT,
+            discussion_notes TEXT,
+            question_scores JSONB NOT NULL,
+            assessment_timestamp TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_risk_assessments_client ON significia_core.risk_assessments(client_id);
+        """
+        engine.execute_query(create_risk_assessments)
+
+        # Create Client Risk Master Table
+        create_client_risk_master = """
+        CREATE TABLE IF NOT EXISTS significia_core.client_risk_master (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+            ia_registration_number VARCHAR(100) NOT NULL,
+            category_name VARCHAR(100) NOT NULL,
+            portfolio_name VARCHAR(100) NOT NULL,
+            submitted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_client_risk_master_client ON significia_core.client_risk_master(client_id);
+        """
+        engine.execute_query(create_client_risk_master)

@@ -59,6 +59,17 @@ async def get_client_by_pan(
         raise HTTPException(status_code=404, detail="Client not found")
     return await ClientService.sign_client_urls(client, remote_db)
 
+@router.get("/{connector_id}/clients/code/{code}", response_model=ClientResponse)
+async def get_client_by_code(
+    connector_id: uuid.UUID,
+    code: str,
+    remote_db: Session = Depends(get_remote_session)
+):
+    client = ClientService.get_client_by_code(remote_db, code)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return await ClientService.sign_client_urls(client, remote_db)
+
 @router.put("/{connector_id}/clients/{client_id}", response_model=ClientResponse)
 async def update_client(
     connector_id: uuid.UUID,

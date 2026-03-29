@@ -128,6 +128,14 @@ class ClientService:
         ).first()
 
     @staticmethod
+    def get_client_by_code(db: Session, client_code: str) -> Optional[ClientProfile]:
+        """Fetch client details by unique Client Code."""
+        return db.query(ClientProfile).filter(
+            ClientProfile.client_code == client_code.upper(),
+            ClientProfile.deleted_at == None
+        ).first()
+
+    @staticmethod
     def list_clients(db: Session) -> List[ClientProfile]:
         return db.query(ClientProfile).filter(ClientProfile.deleted_at == None).all()
 
