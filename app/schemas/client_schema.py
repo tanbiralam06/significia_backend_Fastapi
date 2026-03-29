@@ -147,6 +147,14 @@ class ClientUpdate(BaseModel):
     is_active: Optional[bool] = None
     assigned_employee_id: Optional[uuid.UUID] = None
 
+class ClientDocumentResponse(BaseModel):
+    id: uuid.UUID
+    document_type: str
+    file_path: str
+    uploaded_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 class ClientResponse(ClientBase):
     id: uuid.UUID
     client_code: str
@@ -159,5 +167,7 @@ class ClientResponse(ClientBase):
     advisor_signature_path: Optional[str] = None
     aadhar_number: Optional[str] = None
     passport_number: Optional[str] = None
+    
+    documents: list[ClientDocumentResponse] = []
 
     model_config = ConfigDict(from_attributes=True)

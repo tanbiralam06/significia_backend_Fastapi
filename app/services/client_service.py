@@ -188,3 +188,29 @@ class ClientService:
         
         filename = f"Client_Master_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         return pdf_bytes, filename
+
+    @staticmethod
+    async def upload_document(db: Session, client_id: uuid.UUID, document_type: str, file: any):
+        from app.models.client import ClientDocument
+        from app.utils.file_storage import save_upload_file
+        
+        db_client = ClientService.get_client(db, client_id)
+        if not db_client:
+            raise ValueError("Client not found")
+            
+        folder_path = f"Clients/{db_client.client_name}"
+        file_prefix = document_type.replace(" ", "_").lower()
+        file_path = await save_upload_file(file, folder_path, prefix=file_prefix, db=db)
+        
+        doc = ClientDocument(
+            client_id=client_id,
+            document_type=document_type,
+            file_path=file_path
+        )
+        db.add(doc)
+        
+        ClientService._log_audit(db, client_id, "DOCUMENT_UPLOAD", {"document_type": document_type, "file_path": str(file_path)})
+        
+        db.commit()
+        db.refresh(doc)
+        return doc

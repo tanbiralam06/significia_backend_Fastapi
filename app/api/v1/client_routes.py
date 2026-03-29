@@ -132,3 +132,24 @@ async def download_client_blank_form(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+from fastapi import UploadFile, File, Form
+from app.schemas.client_schema import ClientDocumentResponse
+
+@router.post("/{connector_id}/clients/{client_id}/upload-document", response_model=ClientDocumentResponse)
+async def upload_client_document(
+    connector_id: uuid.UUID,
+    client_id: uuid.UUID,
+    document_type: str = Form(...),
+    file: UploadFile = File(...),
+    remote_db: Session = Depends(get_remote_session)
+):
+    """
+    Upload a document for a specific client. 
+    The file will correctly route directly to 'Clients/{Client Name}' bucket folder.
+    """
+    try:
+        return await ClientService.upload_document(remote_db, client_id, document_type, file)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
