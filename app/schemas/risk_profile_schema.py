@@ -32,7 +32,7 @@ class RiskAssessmentAnswers(BaseModel):
     q16: str
 
 class RiskAssessmentCreate(BaseModel):
-    client_code: str = Field(..., pattern="^[A-Z][0-9]{5}$")
+    client_code: str = Field(..., pattern="^[A-Z]{1,10}[0-9]{1,10}$")
     answers: RiskAssessmentAnswers
     include_ai: bool = False
     disclaimer_text: Optional[str] = None
