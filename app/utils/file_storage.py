@@ -10,7 +10,7 @@ from app.services.storage_service import StorageService
 
 async def save_upload_file(
     upload_file: UploadFile, 
-    nature_of_entity: str, 
+    folder_path: str, 
     prefix: str,
     db: Session = None,
     tenant_id: uuid.UUID = None
@@ -31,14 +31,14 @@ async def save_upload_file(
     if db:
         storage_driver = StorageService.get_tenant_storage(db)
         if storage_driver:
-            # Cloud Path: docs/entity_type/filename
-            cloud_key = f"docs/{nature_of_entity}/{filename}"
+            # Cloud Path: folder_path/filename
+            cloud_key = f"{folder_path}/{filename}"
             await storage_driver.upload_file(upload_file, cloud_key)
             return cloud_key
 
     # 3. Fallback to Local Storage
-    UPLOAD_DIR = "uploads/ia_documents"
-    target_dir = os.path.join(UPLOAD_DIR, nature_of_entity)
+    UPLOAD_DIR = "uploads"
+    target_dir = os.path.join(UPLOAD_DIR, folder_path)
     os.makedirs(target_dir, exist_ok=True)
     
     file_path = os.path.join(target_dir, filename)

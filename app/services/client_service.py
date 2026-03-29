@@ -7,6 +7,7 @@ from app.schemas.client_schema import ClientCreate, ClientUpdate
 from app.models.ia_master import IAMaster
 from app.models.client import ClientProfile
 from app.core.security import get_password_hash
+from app.services.storage_service import StorageService
 
 class ClientService:
     @staticmethod
@@ -36,6 +37,33 @@ class ClientService:
             return f"C{next_num:010d}"
         except (ValueError, TypeError):
             return "C0000000001"
+
+    @staticmethod
+    async def sign_client_urls(client: any, db: Session):
+        if not client:
+            return client
+        driver = StorageService.get_tenant_storage(db)
+        if not driver:
+            return client
+            
+        async def get_url(path: str):
+            if not path:
+                return None
+            if not path.startswith(('http://', 'https://')):
+                return await driver.get_file_url(path)
+            return path
+
+        if hasattr(client, 'documents') and client.documents:
+            for doc in client.documents:
+                doc.file_path = await get_url(doc.file_path)
+                
+        if hasattr(client, 'client_signature_path'):
+            client.client_signature_path = await get_url(client.client_signature_path)
+            
+        if hasattr(client, 'advisor_signature_path'):
+            client.advisor_signature_path = await get_url(client.advisor_signature_path)
+            
+        return client
 
     @staticmethod
     def create_client(db: Session, client_in: ClientCreate) -> ClientProfile:
@@ -188,3 +216,29 @@ class ClientService:
         
         filename = f"Client_Master_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         return pdf_bytes, filename
+
+    @staticmethod
+    async def upload_document(db: Session, client_id: uuid.UUID, document_type: str, file: any):
+        from app.models.client import ClientDocument
+        from app.utils.file_storage import save_upload_file
+        
+        db_client = ClientService.get_client(db, client_id)
+        if not db_client:
+            raise ValueError("Client not found")
+            
+        folder_path = f"Clients/{db_client.client_name}"
+        file_prefix = document_type.replace(" ", "_").lower()
+        file_path = await save_upload_file(file, folder_path, prefix=file_prefix, db=db)
+        
+        doc = ClientDocument(
+            client_id=client_id,
+            document_type=document_type,
+            file_path=file_path
+        )
+        db.add(doc)
+        
+        ClientService._log_audit(db, client_id, "DOCUMENT_UPLOAD", {"document_type": document_type, "file_path": str(file_path)})
+        
+        db.commit()
+        db.refresh(doc)
+        return doc
