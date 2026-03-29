@@ -18,7 +18,7 @@ from app.models.ia_master import IAMaster
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from app.services.questionnaire_constants import QUESTIONNAIRE_DATA
 
@@ -198,8 +198,8 @@ class ReportService:
                 options_str = ""
                 for opt_code, opt_text in q_data['options'].items():
                     is_selected = opt_code.lower() == str(selected_val).lower()
-                    prefix = f"<b>[X]</b> " if is_selected else "[  ] "
-                    text_color = "#D4AF37" if is_selected else "#000000" # Golden for selected
+                    prefix = f"<b>[✓]</b> " if is_selected else "[  ] "
+                    text_color = "#006400" if is_selected else "#000000" # Dark Green for selected
                     options_str += f"<font color='{text_color}'>{prefix}{opt_code}. {opt_text}</font><br/>"
                 
                 story.append(Paragraph(options_str, ParagraphStyle('Options', parent=normal_style, leftIndent=20, leading=12)))
@@ -323,11 +323,13 @@ class ReportService:
 
                 for opt_code, opt_text in q_data['options'].items():
                     is_selected = opt_code.lower() == str(selected_val).lower()
-                    option_p = doc.add_paragraph(style='List Bullet')
-                    run = option_p.add_run(f"{opt_code}. {opt_text}")
+                    prefix = f"[✓] " if is_selected else "[  ] "
+                    option_p = doc.add_paragraph()
+                    option_p.paragraph_format.left_indent = Pt(20)
+                    run = option_p.add_run(f"{prefix}{opt_code}. {opt_text}")
                     if is_selected:
                         run.bold = True
-                        run.underline = True
+                        run.font.color.rgb = RGBColor(0, 100, 0) # Dark Green
             
             doc.add_paragraph() # Spacer
 
