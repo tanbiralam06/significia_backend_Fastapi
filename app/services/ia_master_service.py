@@ -20,15 +20,16 @@ class IAMasterService:
     def validate_ia_number(self, db: Session, ia_number: str) -> bool:
         return self.ia_repo.exists_by_reg_number(db, ia_number)
 
-    async def _handle_files(self, ia_data: dict, nature: str, ia_cert, ia_sig, ia_logo, db: Session):
+    async def _handle_files(self, ia_data: dict, ia_name: str, ia_cert, ia_sig, ia_logo, db: Session):
+        folder_path = f"IA Master/{ia_name}"
         if ia_cert:
-            ia_data['ia_certificate_path'] = await save_upload_file(ia_cert, nature, "ia_cert", db=db)
+            ia_data['ia_certificate_path'] = await save_upload_file(ia_cert, folder_path, "ia_cert", db=db)
         if ia_sig:
-            ia_data['ia_signature_path'] = await save_upload_file(ia_sig, nature, "ia_sig", db=db)
+            ia_data['ia_signature_path'] = await save_upload_file(ia_sig, folder_path, "ia_sig", db=db)
         if ia_logo:
-            ia_data['ia_logo_path'] = await save_upload_file(ia_logo, nature, "ia_logo", db=db)
+            ia_data['ia_logo_path'] = await save_upload_file(ia_logo, folder_path, "ia_logo", db=db)
 
-    async def _handle_employees(self, db: Session, db_ia_id: uuid.UUID, employees_data: List[dict], employee_certs: List[UploadFile], nature: str):
+    async def _handle_employees(self, db: Session, db_ia_id: uuid.UUID, employees_data: List[dict], employee_certs: List[UploadFile], ia_name: str):
         from app.models.ia_master import EmployeeDetails
         # Clear old employees to re-sync
         db.query(EmployeeDetails).filter(EmployeeDetails.ia_master_id == db_ia_id).delete()
@@ -36,7 +37,8 @@ class IAMasterService:
         for i, emp_data in enumerate(employees_data):
             emp_data['ia_master_id'] = db_ia_id
             if i < len(employee_certs) and employee_certs[i]:
-                emp_data['certificate_path'] = await save_upload_file(employee_certs[i], nature, f"emp_cert_{i}", db=db)
+                partner_path = f"IA Master/{ia_name}/Partners/{emp_data['name_of_employee']}"
+                emp_data['certificate_path'] = await save_upload_file(employee_certs[i], partner_path, f"emp_cert_{i}", db=db)
             self.ia_repo.create_employee(db, emp_data)
 
     async def create_ia_entry(
@@ -55,8 +57,8 @@ class IAMasterService:
         from app.models.ia_master import IAMaster
         existing_ia = db.query(IAMaster).filter(IAMaster.ia_registration_number == ia_data['ia_registration_number']).first()
 
-        nature = ia_data['nature_of_entity']
-        await self._handle_files(ia_data, nature, ia_cert, ia_sig, ia_logo, db)
+        ia_name = ia_data['name_of_ia']
+        await self._handle_files(ia_data, ia_name, ia_cert, ia_sig, ia_logo, db)
 
         if existing_ia:
             for key, value in ia_data.items():
@@ -70,7 +72,7 @@ class IAMasterService:
             db_ia = self.ia_repo.create(db, ia_data)
             action = "INSERT"
         
-        await self._handle_employees(db, db_ia.id, employees_data, employee_certs, nature)
+        await self._handle_employees(db, db_ia.id, employees_data, employee_certs, ia_name)
 
         changes = f"{'Updated' if action == 'UPDATE' else 'Created'} IA Master: {ia_data['name_of_ia']} (Reg No: {ia_data['ia_registration_number']})"
         self.audit_repo.log_event(db, action, "ia_master", str(db_ia.id), changes=changes, user_ip=user_ip, user_agent=user_agent)
@@ -93,8 +95,8 @@ class IAMasterService:
         if not db_ia:
             raise ValueError("IA record not found")
 
-        nature = ia_data.get('nature_of_entity', db_ia.nature_of_entity)
-        await self._handle_files(ia_data, nature, ia_cert, ia_sig, ia_logo, db)
+        ia_name = ia_data.get('name_of_ia', db_ia.name_of_ia)
+        await self._handle_files(ia_data, ia_name, ia_cert, ia_sig, ia_logo, db)
 
         for key, value in ia_data.items():
             if value is not None:
@@ -103,7 +105,7 @@ class IAMasterService:
         db.commit()
         db.refresh(db_ia)
         
-        await self._handle_employees(db, db_ia.id, employees_data, employee_certs, nature)
+        await self._handle_employees(db, db_ia.id, employees_data, employee_certs, ia_name)
 
         self.audit_repo.log_event(
             db, "UPDATE", "ia_master", str(db_ia.id), 
@@ -119,7 +121,7 @@ class IAMasterService:
         async def get_url(path: str):
             if not path:
                 return None
-            if path.startswith("docs/") and driver:
+            if driver and not path.startswith(('http://', 'https://')):
                 return await driver.get_file_url(path)
             return path
         if hasattr(ia_record, 'ia_certificate_path'):
