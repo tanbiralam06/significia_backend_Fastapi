@@ -16,25 +16,29 @@ router = APIRouter()
 # The 'get_remote_session' dependency handles connection, decryption, and schema context.
 
 @router.post("/{connector_id}/clients", response_model=ClientResponse)
-def create_client(
+async def create_client(
     connector_id: uuid.UUID,
     client_in: ClientCreate,
     remote_db: Session = Depends(get_remote_session)
 ):
     try:
-        return ClientService.create_client(remote_db, client_in)
+        client = ClientService.create_client(remote_db, client_in)
+        return await ClientService.sign_client_urls(client, remote_db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/{connector_id}/clients", response_model=List[ClientResponse])
-def list_clients(
+async def list_clients(
     connector_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
 ):
-    return ClientService.list_clients(remote_db)
+    clients = ClientService.list_clients(remote_db)
+    for client in clients:
+        await ClientService.sign_client_urls(client, remote_db)
+    return clients
 
 @router.get("/{connector_id}/clients/{client_id}", response_model=ClientResponse)
-def get_client(
+async def get_client(
     connector_id: uuid.UUID,
     client_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
@@ -42,10 +46,10 @@ def get_client(
     client = ClientService.get_client(remote_db, client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    return client
+    return await ClientService.sign_client_urls(client, remote_db)
 
 @router.get("/{connector_id}/clients/pan/{pan}", response_model=ClientResponse)
-def get_client_by_pan(
+async def get_client_by_pan(
     connector_id: uuid.UUID,
     pan: str,
     remote_db: Session = Depends(get_remote_session)
@@ -53,10 +57,10 @@ def get_client_by_pan(
     client = ClientService.get_client_by_pan(remote_db, pan)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    return client
+    return await ClientService.sign_client_urls(client, remote_db)
 
 @router.put("/{connector_id}/clients/{client_id}", response_model=ClientResponse)
-def update_client(
+async def update_client(
     connector_id: uuid.UUID,
     client_id: uuid.UUID,
     client_in: ClientUpdate,
@@ -65,7 +69,7 @@ def update_client(
     client = ClientService.update_client(remote_db, client_id, client_in)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    return client
+    return await ClientService.sign_client_urls(client, remote_db)
 
 @router.delete("/{connector_id}/clients/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_client(
@@ -149,7 +153,12 @@ async def upload_client_document(
     The file will correctly route directly to 'Clients/{Client Name}' bucket folder.
     """
     try:
-        return await ClientService.upload_document(remote_db, client_id, document_type, file)
+        doc = await ClientService.upload_document(remote_db, client_id, document_type, file)
+        from app.services.storage_service import StorageService
+        driver = StorageService.get_tenant_storage(remote_db)
+        if driver and not doc.file_path.startswith(('http://', 'https://')):
+            doc.file_path = await driver.get_file_url(doc.file_path)
+        return doc
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
