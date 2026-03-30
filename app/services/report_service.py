@@ -604,11 +604,11 @@ class ReportService:
         
         # Add free space for manual recommendation
         doc.add_paragraph().add_run("Additional Advisor Guidance:").bold = True
-        for _ in range(12): doc.add_paragraph() # Significant blank space
-        doc.add_paragraph("________________________________________________________________________________")
+        for _ in range(8): doc.add_paragraph() # Significant blank space
+        # doc.add_paragraph("________________________________________________________________________________")
         
         # DISCUSSION NOTES ALWAYS ON NEW PAGE AS REQUESTED
-        doc.add_page_break()
+        # doc.add_page_break()
 
         if assessment.discussion_notes:
             doc.add_heading('DISCUSSION NOTES', level=1)
