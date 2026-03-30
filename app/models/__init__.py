@@ -12,3 +12,4 @@ from app.models.ia_master import IAMaster, EmployeeDetails, AuditTrail
 from app.models.api_key import ApiKey
 from app.models.client import ClientProfile, ClientDocument, ClientAuditTrail
 from app.models.financial_analysis import FinancialAnalysisProfile, FinancialAnalysisResult
+from app.models.risk_profile import RiskAssessment, ClientRiskMaster
