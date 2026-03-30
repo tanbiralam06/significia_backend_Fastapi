@@ -23,6 +23,7 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement, ns
 from app.services.questionnaire_constants import QUESTIONNAIRE_DATA
+from app.services.risk_profile_service import SCORING_RULES
 
 def resolve_logo_path(logo_path: Optional[str]) -> Optional[str]:
     """Try multiple strategies to find the logo file on disk, matching financial_report_generator.py logic."""
@@ -231,21 +232,26 @@ class ReportService:
 
         # 5. Questionnaire Responses
         story.append(Paragraph("QUESTIONNAIRE RESPONSES", heading_style))
+        q_scores = assessment.question_scores or {}
         
         for q_id, q_data in QUESTIONNAIRE_DATA.items():
-            story.append(Paragraph(f"<b>{q_id.upper()}. {q_data['title']}</b>", normal_style))
+            s_info = q_scores.get(q_id, {})
+            score_text = f" (Score: {s_info.get('score', 0)}/{s_info.get('max', 0)})"
+            story.append(Paragraph(f"<b>{q_id.upper()}. {q_data['title']}{score_text}</b>", normal_style))
             story.append(Paragraph(q_data['question'], normal_style))
             
             # Handle Q2 (Factors) specifically
             if q_id == 'q2':
                 q2_answers = assessment.q2_importance_factors
-                table_data = [["Factor", "Importance"]]
+                q2_scores = s_info.get('details', {})
+                table_data = [["Factor", "Importance", "Score"]]
                 for f_code, f_name in q_data['factors'].items():
                     ans_code = q2_answers.get(f_code, "-")
                     ans_text = q_data['options'].get(ans_code, ans_code)
-                    table_data.append([f_name, Paragraph(f"<b>{ans_text}</b>", bold_style)])
+                    f_score = q2_scores.get(f_code, {}).get('score', 0)
+                    table_data.append([f_name, Paragraph(f"<b>{ans_text}</b>", bold_style), str(f_score)])
                 
-                q2_table = Table(table_data, colWidths=[3.5*inch, 2.5*inch])
+                q2_table = Table(table_data, colWidths=[3*inch, 2*inch, 1*inch])
                 q2_table.setStyle(TableStyle([
                     ('GRID', (0,0), (-1,-1), 0.2, colors.lightgrey),
                     ('FONTSIZE', (0,0), (-1,-1), 8),
@@ -286,6 +292,51 @@ class ReportService:
             
             story.append(Spacer(1, 10))
         
+        story.append(Spacer(1, 5))
+        story.append(Paragraph(f"<b>TOTAL ASSESSMENT SCORE: {assessment.calculated_score} / 100</b>", bold_style))
+        story.append(Spacer(1, 15))
+
+        # 5a. Scoring Reference Chart
+        story.append(Paragraph("SCORING REFERENCE", heading_style))
+        ref_data = [["Q #", "Option", "Points"]]
+        for q_id, rules in SCORING_RULES.items():
+            if q_id == 'q2': continue # Handle Q2 separately
+            for opt, score in rules.items():
+                ref_data.append([q_id.upper(), f"Option {opt.upper()}", str(score)])
+        
+        # Split into multiple tables or one long one? One long one with columns
+        # To make it compact, let's group by question
+        compact_ref = [["Question", "Scoring Rule (Option: Points)"]]
+        for q_id, rules in SCORING_RULES.items():
+            if q_id == 'q2': continue
+            rule_str = ", ".join([f"{opt.upper()}: {score}" for opt, score in rules.items()])
+            compact_ref.append([q_id.upper(), rule_str])
+        
+        ref_table = Table(compact_ref, colWidths=[1.5*inch, 4.5*inch])
+        ref_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.2, colors.lightgrey),
+            ('FONTSIZE', (0,0), (-1,-1), 8),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(ref_table)
+        
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("<b>Q2 Scoring Factors:</b> (A: Very, B: Somewhat, C: Not Important)", normal_style))
+        q2_rules_data = [["Factor", "A", "B", "C"]]
+        from app.services.questionnaire_constants import QUESTIONNAIRE_DATA as Q_DATA
+        for f_id, f_name in Q_DATA['q2']['factors'].items():
+            f_rules = SCORING_RULES['q2'].get(f_id, {})
+            q2_rules_data.append([f_name, str(f_rules.get('A', 0)), str(f_rules.get('B', 0)), str(f_rules.get('C', 0))])
+            
+        q2_ref_table = Table(q2_rules_data, colWidths=[3*inch, 1*inch, 1*inch, 1*inch])
+        q2_ref_table.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.2, colors.lightgrey),
+            ('FONTSIZE', (0,0), (-1,-1), 7),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (1,0), (-1,-1), 'CENTER'),
+        ]))
+        story.append(q2_ref_table)
         story.append(Spacer(1, 15))
         
         # 6. Recommendation and Notes
@@ -296,10 +347,13 @@ class ReportService:
         # Add free space for manual recommendation
         story.append(Spacer(1, 12))
         story.append(Paragraph("Additional Advisor Guidance:", bold_style))
-        story.append(Spacer(1, 60)) # Free space for manual writing
-        story.append(Paragraph("__________________________________________________________________________________________", normal_style))
+        story.append(Spacer(1, 120)) # Significantly larger space for manual writing
+        # story.append(Paragraph("__________________________________________________________________________________________", normal_style))
         story.append(Spacer(1, 20))
         
+        # DISCUSSION NOTES ALWAYS ON NEW PAGE AS REQUESTED
+        story.append(PageBreak())
+
         if assessment.discussion_notes:
             story.append(Paragraph("DISCUSSION NOTES", heading_style))
             # Convert newlines for ReportLab Paragraph
@@ -427,27 +481,34 @@ class ReportService:
 
         # 5. Questionnaire Responses
         doc.add_heading('QUESTIONNAIRE RESPONSES', level=1)
+        q_scores = assessment.question_scores or {}
         
         for q_id, q_data in QUESTIONNAIRE_DATA.items():
+            s_info = q_scores.get(q_id, {})
+            score_text = f" (Score: {s_info.get('score', 0)}/{s_info.get('max', 0)})"
             p = doc.add_paragraph()
-            p.add_run(f"{q_id.upper()}. {q_data['title']}").bold = True
+            p.add_run(f"{q_id.upper()}. {q_data['title']}{score_text}").bold = True
             doc.add_paragraph(q_data['question'])
             
             if q_id == 'q2':
                 q2_answers = assessment.q2_importance_factors
-                t2 = doc.add_table(rows=1, cols=2)
+                q2_scores = s_info.get('details', {})
+                t2 = doc.add_table(rows=1, cols=3)
                 t2.style = 'Table Grid'
                 hdr_cells = t2.rows[0].cells
                 hdr_cells[0].text = 'Factor'
                 hdr_cells[1].text = 'Importance'
+                hdr_cells[2].text = 'Score'
                 
                 for f_code, f_name in q_data['factors'].items():
                     ans_code = q2_answers.get(f_code, "-")
                     ans_text = q_data['options'].get(ans_code, ans_code)
+                    f_score = q2_scores.get(f_code, {}).get('score', 0)
                     row_cells = t2.add_row().cells
                     row_cells[0].text = f_name
                     row_cells[1].text = ans_text
                     row_cells[1].paragraphs[0].runs[0].bold = True
+                    row_cells[2].text = str(f_score)
             else:
                 # Standard questions - mapping q_id to model field name
                 field_map = {
@@ -481,6 +542,57 @@ class ReportService:
                         run.font.color.rgb = RGBColor(0, 100, 0) # Dark Green
             
             doc.add_paragraph() # Spacer
+        
+        # Total Score Summary
+        total_p = doc.add_paragraph()
+        total_run = total_p.add_run(f"TOTAL ASSESSMENT SCORE: {assessment.calculated_score} / 100")
+        total_run.bold = True
+        total_run.font.size = Pt(11)
+        doc.add_paragraph() # Extra spacer
+
+        # 5a. Scoring Reference Chart
+        doc.add_heading('SCORING REFERENCE', level=1)
+        ref_table = doc.add_table(rows=1, cols=2)
+        ref_table.style = 'Table Grid'
+        hdr_cells = ref_table.rows[0].cells
+        hdr_cells[0].text = 'Question'
+        hdr_cells[1].text = 'Scoring Rule (Option: Points)'
+        hdr_cells[0].paragraphs[0].runs[0].bold = True
+        hdr_cells[1].paragraphs[0].runs[0].bold = True
+
+        for q_id, rules in SCORING_RULES.items():
+            if q_id == 'q2': continue
+            row_cells = ref_table.add_row().cells
+            row_cells[0].text = q_id.upper()
+            row_cells[1].text = ", ".join([f"{opt.upper()}: {score}" for opt, score in rules.items()])
+            row_cells[0].paragraphs[0].runs[0].font.size = Pt(9)
+            row_cells[1].paragraphs[0].runs[0].font.size = Pt(9)
+
+        doc.add_paragraph()
+        p = doc.add_paragraph()
+        p.add_run("Q2 Scoring Factors: (A: Very, B: Somewhat, C: Not Important)").bold = True
+        p.style.font.size = Pt(9)
+        
+        from app.services.questionnaire_constants import QUESTIONNAIRE_DATA as Q_DATA
+        q2_table = doc.add_table(rows=1, cols=4)
+        q2_table.style = 'Table Grid'
+        hdr_cells = q2_table.rows[0].cells
+        hdr_cells[0].text = 'Factor'
+        hdr_cells[1].text = 'A'
+        hdr_cells[2].text = 'B'
+        hdr_cells[3].text = 'C'
+        for cell in hdr_cells: cell.paragraphs[0].runs[0].bold = True
+
+        for f_id, f_name in Q_DATA['q2']['factors'].items():
+            f_rules = SCORING_RULES['q2'].get(f_id, {})
+            row_cells = q2_table.add_row().cells
+            row_cells[0].text = f_name
+            row_cells[1].text = str(f_rules.get('A', 0))
+            row_cells[2].text = str(f_rules.get('B', 0))
+            row_cells[3].text = str(f_rules.get('C', 0))
+            for cell in row_cells: cell.paragraphs[0].runs[0].font.size = Pt(8)
+
+        doc.add_paragraph() # Extra spacer
 
         # 6. Recommendation and Notes
         doc.add_heading('ADVISOR RECOMMENDATION', level=1)
@@ -491,12 +603,13 @@ class ReportService:
         doc.add_paragraph(assessment.tier_recommendation or "No recommendation provided.")
         
         # Add free space for manual recommendation
-        doc.add_paragraph().add_run().add_break()
-        p = doc.add_paragraph()
-        p.add_run("Additional Advisor Guidance:").bold = True
-        for _ in range(4):
-            doc.add_paragraph("__________________________________________________________________________________________")
+        doc.add_paragraph().add_run("Additional Advisor Guidance:").bold = True
+        for _ in range(12): doc.add_paragraph() # Significant blank space
+        doc.add_paragraph("________________________________________________________________________________")
         
+        # DISCUSSION NOTES ALWAYS ON NEW PAGE AS REQUESTED
+        doc.add_page_break()
+
         if assessment.discussion_notes:
             doc.add_heading('DISCUSSION NOTES', level=1)
             p = doc.add_paragraph()
