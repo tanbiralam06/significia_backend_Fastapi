@@ -125,7 +125,7 @@ class ProvisionerService:
             # Patch risk_assessments for form_name
             engine.execute_query("ALTER TABLE significia_core.risk_assessments ADD COLUMN IF NOT EXISTS form_name VARCHAR(255) DEFAULT 'Sample';")
 
-            # Create Risk Questionnaire Table
+            # Create Risk Questionnaire Table (With Disclaimer)
             create_risk_questionnaires = """
             CREATE TABLE IF NOT EXISTS significia_core.risk_questionnaires (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -134,11 +134,15 @@ class ProvisionerService:
                 questions JSONB NOT NULL DEFAULT '[]'::jsonb,
                 categories JSONB NOT NULL DEFAULT '[]'::jsonb,
                 max_possible_score DOUBLE PRECISION DEFAULT 0.0,
+                disclaimer TEXT,
                 created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """
             engine.execute_query(create_risk_questionnaires)
+            
+            # Patch risk_questionnaires for disclaimer
+            engine.execute_query("ALTER TABLE significia_core.risk_questionnaires ADD COLUMN IF NOT EXISTS disclaimer TEXT;")
 
             # Create Custom Risk Assessment Table
             create_custom_risk_assessments = """
@@ -450,7 +454,7 @@ class ProvisionerService:
         """
         engine.execute_query(create_client_risk_master)
 
-        # Create Risk Questionnaire Table
+        # Create Risk Questionnaire Table (With Disclaimer)
         create_risk_questionnaires = """
         CREATE TABLE IF NOT EXISTS significia_core.risk_questionnaires (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -459,6 +463,7 @@ class ProvisionerService:
             questions JSONB NOT NULL DEFAULT '[]'::jsonb,
             categories JSONB NOT NULL DEFAULT '[]'::jsonb,
             max_possible_score DOUBLE PRECISION DEFAULT 0.0,
+            disclaimer TEXT,
             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );

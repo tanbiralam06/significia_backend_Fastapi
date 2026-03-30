@@ -26,6 +26,7 @@ class RiskQuestionnaireBase(BaseModel):
     categories: List[RiskCategory]
     status: str = "draft"
     max_possible_score: float = 0.0
+    disclaimer: Optional[str] = None
 
 class RiskQuestionnaireCreate(RiskQuestionnaireBase):
     pass
@@ -36,6 +37,7 @@ class RiskQuestionnaireUpdate(BaseModel):
     categories: Optional[List[RiskCategory]] = None
     status: Optional[str] = None
     max_possible_score: Optional[float] = None
+    disclaimer: Optional[str] = None
 
 class RiskQuestionnaireResponse(RiskQuestionnaireBase):
     id: UUID

@@ -91,6 +91,7 @@ class RiskQuestionnaire(SiloBase):
     questions: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
     categories: Mapped[dict] = mapped_column(JSONB, nullable=False, default=list)
     max_possible_score: Mapped[float] = mapped_column(Integer, default=0)
+    disclaimer: Mapped[Optional[str]] = mapped_column(Text)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

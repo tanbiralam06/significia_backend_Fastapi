@@ -1149,9 +1149,19 @@ class ReportService:
             story.append(Paragraph(options_p, ParagraphStyle('Options', parent=normal_style, leftIndent=20, leading=12)))
             story.append(Spacer(1, 10))
 
-        # 6. Signature Section
+        # 7. Disclaimer Section
+        if questionnaire.disclaimer:
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("DISCLAIMER", bold_style))
+            story.append(Paragraph(questionnaire.disclaimer, normal_style))
+            story.append(Spacer(1, 10))
 
-        # 7. Signature Section
+        # 8. Discussion Notes Section
+        story.append(Spacer(1, 20))
+        story.append(Paragraph("DISCUSSION & STRATEGIC NOTES", bold_style))
+        story.append(Spacer(1, 120)) # Large blank space for manual notes
+        
+        # 9. Signature Section
         story.append(Spacer(1, 40))
         sig_data = [
             [Paragraph("<b>__________________________</b><br/>Client Signature", normal_style), 
