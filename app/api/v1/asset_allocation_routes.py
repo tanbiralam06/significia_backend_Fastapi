@@ -1,9 +1,18 @@
+"""
+Asset Allocation Routes — Bridge Architecture
+──────────────────────────────────────────────
+Asset allocation endpoints now support Bridge-powered routes.
+"""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import uuid
 
+from app.api.deps import get_bridge_client
+from app.services.bridge_client import BridgeClient
+
+# Legacy imports
 from app.database.remote_session import get_remote_session
 from app.schemas.asset_allocation import (
     AssetAllocationCreate,
@@ -19,19 +28,50 @@ from sqlalchemy import select
 
 router = APIRouter()
 
+
+# ════════════════════════════════════════════════════════════════════
+#  BRIDGE-POWERED ROUTES (no connector_id)
+# ════════════════════════════════════════════════════════════════════
+
+@router.post("/bridge/save", response_model=dict)
+async def save_asset_allocation_bridge(
+    payload: AssetAllocationCreate,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Save an asset allocation via the Bridge."""
+    return await bridge.post("/api/asset-allocations", payload.model_dump())
+
+
+@router.get("/bridge/allocations", response_model=list)
+async def list_allocations_bridge(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """List all asset allocations via the Bridge."""
+    return await bridge.get("/api/asset-allocations/all")
+
+
+@router.get("/bridge/allocation/{allocation_id}", response_model=dict)
+async def get_allocation_bridge(
+    allocation_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get a specific allocation via the Bridge."""
+    return await bridge.get(f"/api/asset-allocations/{allocation_id}")
+
+
+# ════════════════════════════════════════════════════════════════════
+#  LEGACY ROUTES (with connector_id — kept during transition)
+# ════════════════════════════════════════════════════════════════════
+
 @router.post("/{connector_id}/validate-client", response_model=ClientValidateResponse)
 def validate_client(
     connector_id: uuid.UUID,
     payload: dict,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Validate client code and return profile/risk data.
-    """
     client_code = payload.get("client_code")
     if not client_code:
         raise HTTPException(status_code=400, detail="Client code is required")
-        
     result = AssetAllocationService.validate_client_for_allocation(remote_db, client_code)
     return result
 
@@ -42,12 +82,7 @@ def save_asset_allocation(
     payload: AssetAllocationCreate,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Persist an asset allocation record.
-    """
     from sqlalchemy import text
-
-    # Ensure table exists before saving (idempotent for existing connectors)
     try:
         remote_db.execute(text("""
             CREATE TABLE IF NOT EXISTS significia_core.asset_allocations (
@@ -83,11 +118,9 @@ def save_asset_allocation(
     try:
         user_ip = request.client.host
         user_agent = request.headers.get("User-Agent", "Unknown")
-        
         allocation = AssetAllocationService.create_allocation(
             remote_db, payload, user_ip, user_agent
         )
-        
         return {
             "success": True,
             "allocation_id": allocation.id,
@@ -103,14 +136,7 @@ def list_allocations(
     connector_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    List all asset allocations. Auto-creates the table if it does not exist yet
-    (for connectors initialized before this feature was added).
-    """
     from sqlalchemy import text
-    from sqlalchemy.exc import ProgrammingError
-
-    # Ensure the table exists (idempotent migration for existing connectors)
     try:
         remote_db.execute(text("""
             CREATE TABLE IF NOT EXISTS significia_core.asset_allocations (
@@ -145,7 +171,6 @@ def list_allocations(
         remote_db.commit()
     except Exception as migration_err:
         remote_db.rollback()
-        print(f"[AssetAllocation] Migration warning (non-fatal): {migration_err}")
 
     try:
         return AssetAllocationService.list_allocations(remote_db)
@@ -158,9 +183,6 @@ def get_allocation(
     allocation_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Get a specific asset allocation by ID.
-    """
     allocation = AssetAllocationService.get_allocation_by_id(remote_db, allocation_id)
     if not allocation:
         raise HTTPException(status_code=404, detail="Allocation not found")
@@ -172,30 +194,22 @@ async def download_allocation_pdf(
     allocation_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Generate and download a PDF report for a specific asset allocation.
-    """
     try:
         allocation = AssetAllocationService.get_allocation_by_id(remote_db, allocation_id)
         if not allocation:
             raise HTTPException(status_code=404, detail="Allocation not found")
-            
         ia_master = remote_db.execute(select(IAMaster).where(IAMaster.ia_registration_number == allocation.ia_registration_number)).scalar_one_or_none()
         if not ia_master:
-            # Fallback to first IA if specific one not found or lookup failed
             ia_master = remote_db.execute(select(IAMaster)).first()
             if ia_master:
                 ia_master = ia_master[0]
-        
         ia_logo_path = None
         if ia_master:
             try:
                 ia_logo_path = await resolve_logo_to_local_path(ia_master.ia_logo_path, remote_db)
             except:
                 ia_logo_path = None
-        
         pdf_buffer = AssetAllocationReportUtils.generate_pdf(allocation, ia_master, ia_logo_path)
-        
         return StreamingResponse(
             pdf_buffer,
             media_type="application/pdf",
@@ -212,22 +226,16 @@ async def download_allocation_docx(
     allocation_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Generate and download a DOCX report for a specific asset allocation.
-    """
     try:
         allocation = AssetAllocationService.get_allocation_by_id(remote_db, allocation_id)
         if not allocation:
             raise HTTPException(status_code=404, detail="Allocation not found")
-            
         ia_master = remote_db.execute(select(IAMaster).where(IAMaster.ia_registration_number == allocation.ia_registration_number)).scalar_one_or_none()
         if not ia_master:
             ia_master = remote_db.execute(select(IAMaster)).first()
             if ia_master:
                 ia_master = ia_master[0]
-        
         docx_buffer = AssetAllocationReportUtils.generate_docx(allocation, ia_master)
-        
         return StreamingResponse(
             docx_buffer,
             media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -235,30 +243,22 @@ async def download_allocation_docx(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate DOCX: {str(e)}")
+
 @router.get("/{connector_id}/blank-form/pdf")
 async def download_blank_pdf(
     connector_id: uuid.UUID,
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Generate and download a blank Asset Allocation PDF template.
-    """
-    # Get IA Master for branding (Fetch the first/primary IA record)
     ia_master = remote_db.execute(select(IAMaster)).first()
     if ia_master:
         ia_master = ia_master[0]
-    
     ia_logo_path = ia_master.ia_logo_path if ia_master else None
-    
-    # Resolve logo path if possible
     if ia_logo_path:
         try:
             ia_logo_path = await resolve_logo_to_local_path(ia_logo_path, remote_db)
         except:
             ia_logo_path = None
-
     pdf_buffer = AssetAllocationReportUtils.generate_blank_pdf(ia_master, ia_logo_path)
-    
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",

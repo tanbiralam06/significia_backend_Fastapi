@@ -1,19 +1,159 @@
+"""
+Client Routes — Bridge Architecture
+─────────────────────────────────────
+All client data operations now go through the Bridge.
+No direct database connections are made from this backend.
+"""
 from typing import List
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
-from app.database.remote_session import get_remote_session
-from app.schemas.client_schema import ClientCreate, ClientUpdate, ClientResponse
-from app.services.client_service import ClientService
+from app.api.deps import get_bridge_client, get_current_tenant, get_db, get_current_user
+from app.services.bridge_client import BridgeClient
+from app.models.tenant import Tenant
+from app.schemas.client_schema import ClientCreate, ClientUpdate, ClientResponse, ClientDocumentResponse
 from app.utils.reports.client_blank_form import generate_client_blank_form
-from app.utils.file_utils import resolve_logo_to_local_path
-from app.models.ia_master import IAMaster
+from app.utils.pdf_generator import ClientPDFGenerator
+
+# Legacy imports kept for backward compatibility during transition
+from app.database.remote_session import get_remote_session
 
 router = APIRouter()
 
-# Note: All routes require a 'connector_id' to know which remote DB to use
-# The 'get_remote_session' dependency handles connection, decryption, and schema context.
+
+# ════════════════════════════════════════════════════════════════════
+#  BRIDGE-POWERED ROUTES (new — no connector_id needed)
+# ════════════════════════════════════════════════════════════════════
+
+@router.post("/clients", response_model=dict)
+async def create_client_bridge(
+    client_in: ClientCreate,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Create a new client via the Bridge (enforces client limit on Bridge side)."""
+    try:
+        data = client_in.model_dump()
+        # Hash the password before sending — Bridge stores the hash
+        from app.core.security import get_password_hash
+        raw_password = data.pop("password")
+        data["password_hash"] = get_password_hash(raw_password)
+        data["email_normalized"] = data["email"].lower()
+
+        result = await bridge.post("/api/clients", data)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/clients", response_model=dict)
+async def list_clients_bridge(
+    skip: int = 0,
+    limit: int = 100,
+    search: str = None,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """List all clients via the Bridge."""
+    params = {"skip": skip, "limit": limit}
+    if search:
+        params["search"] = search
+    return await bridge.get("/api/clients", params=params)
+
+
+@router.get("/clients/{client_id}", response_model=dict)
+async def get_client_bridge(
+    client_id: uuid.UUID,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get a single client via the Bridge."""
+    return await bridge.get(f"/api/clients/{client_id}")
+
+
+@router.get("/clients/pan/{pan}", response_model=dict)
+async def get_client_by_pan_bridge(
+    pan: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get client by PAN via the Bridge."""
+    result = await bridge.get("/api/clients", params={"search": pan})
+    clients = result.get("clients", [])
+    for c in clients:
+        if c.get("pan_number", "").upper() == pan.upper():
+            return c
+    raise HTTPException(status_code=404, detail="Client not found")
+
+
+@router.get("/clients/code/{code}", response_model=dict)
+async def get_client_by_code_bridge(
+    code: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get client by client code via the Bridge."""
+    result = await bridge.get("/api/clients", params={"search": code})
+    clients = result.get("clients", [])
+    for c in clients:
+        if c.get("client_code", "").upper() == code.upper():
+            return c
+    raise HTTPException(status_code=404, detail="Client not found")
+
+
+@router.put("/clients/{client_id}", response_model=dict)
+async def update_client_bridge(
+    client_id: uuid.UUID,
+    client_in: ClientUpdate,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Update a client via the Bridge."""
+    update_data = client_in.model_dump(exclude_unset=True)
+    return await bridge.patch(f"/api/clients/{client_id}", update_data)
+
+
+@router.delete("/clients/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_client_bridge(
+    client_id: uuid.UUID,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Soft-delete a client via the Bridge."""
+    await bridge.delete(f"/api/clients/{client_id}")
+    return None
+
+
+@router.post("/clients/{client_id}/upload-document", response_model=dict)
+async def upload_client_document_bridge(
+    client_id: uuid.UUID,
+    document_type: str = Form(...),
+    file: UploadFile = File(...),
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Upload a document for a client via the Bridge (stored in IA's own bucket)."""
+    file_bytes = await file.read()
+    result = await bridge.upload_file(
+        f"/api/storage/upload",
+        file_bytes=file_bytes,
+        filename=file.filename,
+        content_type=file.content_type or "application/octet-stream",
+    )
+    return result
+
+
+@router.get("/billing/client-count", response_model=dict)
+async def get_client_count_bridge(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get client count (billing metric) from the Bridge."""
+    return await bridge.get("/api/billing/client-count")
+
+
+# ════════════════════════════════════════════════════════════════════
+#  LEGACY ROUTES (kept for backward compatibility during transition)
+#  These still use connector_id + get_remote_session
+# ════════════════════════════════════════════════════════════════════
+
+from app.services.client_service import ClientService
+from app.models.ia_master import IAMaster
+from app.utils.file_utils import resolve_logo_to_local_path
 
 @router.post("/{connector_id}/clients", response_model=ClientResponse)
 async def create_client(
@@ -131,7 +271,6 @@ async def download_client_blank_form(
 ):
     """Download a blank client registration form as PDF."""
     try:
-        # Get IA Logo if available
         ia_logo_path = None
         ia_master = remote_db.query(IAMaster).first()
         if ia_master:
@@ -148,9 +287,6 @@ async def download_client_blank_form(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-from fastapi import UploadFile, File, Form
-from app.schemas.client_schema import ClientDocumentResponse
-
 @router.post("/{connector_id}/clients/{client_id}/upload-document", response_model=ClientDocumentResponse)
 async def upload_client_document(
     connector_id: uuid.UUID,
@@ -159,10 +295,6 @@ async def upload_client_document(
     file: UploadFile = File(...),
     remote_db: Session = Depends(get_remote_session)
 ):
-    """
-    Upload a document for a specific client. 
-    The file will correctly route directly to 'Clients/{Client Name}' bucket folder.
-    """
     try:
         doc = await ClientService.upload_document(remote_db, client_id, document_type, file)
         from app.services.storage_service import StorageService
@@ -172,4 +304,3 @@ async def upload_client_document(
         return doc
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-

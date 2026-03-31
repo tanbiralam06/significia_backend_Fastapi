@@ -1,6 +1,7 @@
 """
-Financial Analysis API Routes.
-All endpoints are connector-scoped (/{connector_id}/) for multi-tenant isolation.
+Financial Analysis API Routes — Bridge Architecture
+───────────────────────────────────────────────────
+Financial analysis endpoints now support Bridge-powered routes.
 """
 import os
 import uuid
@@ -9,6 +10,10 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_bridge_client
+from app.services.bridge_client import BridgeClient
+
+# Legacy imports
 from app.database.remote_session import get_remote_session
 from app.schemas.financial_analysis_schema import (
     FinancialAnalysisCreate,
@@ -26,6 +31,44 @@ from app.models.financial_analysis import FinancialAnalysisProfile
 router = APIRouter()
 
 
+# ════════════════════════════════════════════════════════════════════
+#  BRIDGE-POWERED ROUTES (no connector_id)
+# ════════════════════════════════════════════════════════════════════
+
+@router.post("/bridge/analysis", response_model=dict)
+async def create_analysis_bridge(
+    analysis_in: FinancialAnalysisCreate,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Create a new financial analysis via the Bridge."""
+    return await bridge.post("/api/financial-analysis/profiles", analysis_in.model_dump())
+
+
+@router.get("/bridge/analysis", response_model=list)
+async def list_analyses_bridge(
+    client_id: Optional[str] = None,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """List all financial analyses via the Bridge."""
+    params = {}
+    if client_id:
+        params["client_id"] = client_id
+    return await bridge.get("/api/financial-analysis/profiles/" + (client_id or ""), params=params)
+
+
+@router.get("/bridge/analysis/{result_id}", response_model=dict)
+async def get_analysis_bridge(
+    result_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get a financial analysis result by ID via the Bridge."""
+    return await bridge.get(f"/api/financial-analysis/results/{result_id}")
+
+
+# ════════════════════════════════════════════════════════════════════
+#  LEGACY ROUTES (with connector_id — kept during transition)
+# ════════════════════════════════════════════════════════════════════
+
 @router.get("/{connector_id}/analysis/{result_id}/pdf")
 async def download_pdf(
     connector_id: uuid.UUID,
@@ -42,7 +85,6 @@ async def download_pdf(
     ).first()
     client = remote_db.query(ClientProfile).filter(ClientProfile.id == result.client_id).first()
     
-    # Get IA Logo if available
     ia_logo_path = None
     ia_master = remote_db.query(IAMaster).first()
     if ia_master:
@@ -79,7 +121,6 @@ async def download_word(
     ).first()
     client = remote_db.query(ClientProfile).filter(ClientProfile.id == result.client_id).first()
     
-    # Get IA Logo if available
     ia_logo_path = None
     ia_master = remote_db.query(IAMaster).first()
     if ia_master:
@@ -132,8 +173,7 @@ def list_analyses(
     remote_db: Session = Depends(get_remote_session),
 ):
     """List all financial analyses, optionally filtered by client_id."""
-    results = FinancialAnalysisService.list_analyses(remote_db, client_id)
-    return results
+    return FinancialAnalysisService.list_analyses(remote_db, client_id)
 
 
 @router.get("/{connector_id}/analysis/{result_id}", response_model=FinancialAnalysisResponse)
@@ -179,7 +219,6 @@ async def download_blank_form(
     remote_db: Session = Depends(get_remote_session),
 ):
     """Download a blank financial analysis data entry form as PDF."""
-    # Get IA Logo if available
     ia_logo_path = None
     ia_master = remote_db.query(IAMaster).first()
     if ia_master:

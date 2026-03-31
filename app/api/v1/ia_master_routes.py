@@ -1,3 +1,8 @@
+"""
+IA Master Routes — Bridge Architecture
+───────────────────────────────────────
+IA Master data operations now go through the Bridge.
+"""
 import uuid
 import json
 from typing import List, Optional
@@ -5,14 +10,51 @@ from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile,
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_bridge_client, get_db, get_current_user
+from app.services.bridge_client import BridgeClient
+from app.models.user import User
+
+# Legacy imports for backward compat
 from app.database.remote_session import get_remote_session
 from app.schemas.ia_master import IAMasterRead, IANumberValidationResponse, IAMasterPermitUpdate, IAMasterListResponse
 from app.services.ia_master_service import IAMasterService
-from app.models.user import User
 
 router = APIRouter()
 ia_service = IAMasterService()
+
+
+# ════════════════════════════════════════════════════════════════════
+#  BRIDGE-POWERED ROUTES (no connector_id)
+# ════════════════════════════════════════════════════════════════════
+
+@router.get("/bridge/latest", response_model=dict)
+async def get_latest_ia_bridge(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get current IA Master record via the Bridge."""
+    return await bridge.get("/api/ia-master")
+
+
+@router.post("/bridge", response_model=dict)
+async def create_or_update_ia_bridge(
+    data: dict,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Create or update IA Master record via the Bridge."""
+    return await bridge.post("/api/ia-master", data)
+
+
+@router.get("/bridge/employees", response_model=list)
+async def list_employees_bridge(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """List all employees of the IA via the Bridge."""
+    return await bridge.get("/api/employees")
+
+
+# ════════════════════════════════════════════════════════════════════
+#  LEGACY ROUTES (with connector_id — kept during transition)
+# ════════════════════════════════════════════════════════════════════
 
 @router.get("/validate-remote/{ia_number}", response_model=IANumberValidationResponse)
 def validate_ia_number_remote(
