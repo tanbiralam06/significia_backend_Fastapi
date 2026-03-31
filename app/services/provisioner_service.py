@@ -144,22 +144,36 @@ class ProvisionerService:
             # Patch risk_questionnaires for disclaimer
             engine.execute_query("ALTER TABLE significia_core.risk_questionnaires ADD COLUMN IF NOT EXISTS disclaimer TEXT;")
 
-            # Create Custom Risk Assessment Table
-            create_custom_risk_assessments = """
-            CREATE TABLE IF NOT EXISTS significia_core.custom_risk_assessments (
+            # Create Asset Allocation Table
+            create_asset_allocations = """
+            CREATE TABLE IF NOT EXISTS significia_core.asset_allocations (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                questionnaire_id UUID NOT NULL REFERENCES significia_core.risk_questionnaires(id) ON DELETE CASCADE,
                 client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
-                responses JSONB NOT NULL,
-                total_score DOUBLE PRECISION NOT NULL,
-                category_name VARCHAR(100),
+                ia_registration_number VARCHAR(100) NOT NULL,
+                assigned_risk_tier VARCHAR(100) NOT NULL,
+                tier_recommendation TEXT NOT NULL,
+                equities_percentage DOUBLE PRECISION DEFAULT 0.0,
+                debt_securities_percentage DOUBLE PRECISION DEFAULT 0.0,
+                commodities_percentage DOUBLE PRECISION DEFAULT 0.0,
+                stocks_percentage DOUBLE PRECISION DEFAULT 0.0,
+                mutual_fund_equity_percentage DOUBLE PRECISION DEFAULT 0.0,
+                ulip_equity_percentage DOUBLE PRECISION DEFAULT 0.0,
+                fixed_deposits_bonds_percentage DOUBLE PRECISION DEFAULT 0.0,
+                mutual_fund_debt_percentage DOUBLE PRECISION DEFAULT 0.0,
+                ulip_debt_percentage DOUBLE PRECISION DEFAULT 0.0,
+                gold_etf_percentage DOUBLE PRECISION DEFAULT 0.0,
+                silver_etf_percentage DOUBLE PRECISION DEFAULT 0.0,
+                system_conclusion TEXT,
+                generate_system_conclusion BOOLEAN DEFAULT TRUE,
                 discussion_notes TEXT,
-                submitted_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                disclaimer_text TEXT,
+                total_allocation DOUBLE PRECISION DEFAULT 100.0,
+                created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
-            CREATE INDEX IF NOT EXISTS idx_custom_risk_assessments_q ON significia_core.custom_risk_assessments(questionnaire_id);
-            CREATE INDEX IF NOT EXISTS idx_custom_risk_assessments_client ON significia_core.custom_risk_assessments(client_id);
+            CREATE INDEX IF NOT EXISTS idx_asset_allocations_client ON significia_core.asset_allocations(client_id);
             """
-            engine.execute_query(create_custom_risk_assessments)
+            engine.execute_query(create_asset_allocations)
         except Exception as e:
             print(f"Migration patching failed: {e}")
 
@@ -486,3 +500,34 @@ class ProvisionerService:
         CREATE INDEX IF NOT EXISTS idx_custom_risk_assessments_client ON significia_core.custom_risk_assessments(client_id);
         """
         engine.execute_query(create_custom_risk_assessments)
+
+        # Create Asset Allocation Table
+        create_asset_allocations = """
+        CREATE TABLE IF NOT EXISTS significia_core.asset_allocations (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            client_id UUID NOT NULL REFERENCES significia_core.clients(id) ON DELETE CASCADE,
+            ia_registration_number VARCHAR(100) NOT NULL,
+            assigned_risk_tier VARCHAR(100) NOT NULL,
+            tier_recommendation TEXT NOT NULL,
+            equities_percentage DOUBLE PRECISION DEFAULT 0.0,
+            debt_securities_percentage DOUBLE PRECISION DEFAULT 0.0,
+            commodities_percentage DOUBLE PRECISION DEFAULT 0.0,
+            stocks_percentage DOUBLE PRECISION DEFAULT 0.0,
+            mutual_fund_equity_percentage DOUBLE PRECISION DEFAULT 0.0,
+            ulip_equity_percentage DOUBLE PRECISION DEFAULT 0.0,
+            fixed_deposits_bonds_percentage DOUBLE PRECISION DEFAULT 0.0,
+            mutual_fund_debt_percentage DOUBLE PRECISION DEFAULT 0.0,
+            ulip_debt_percentage DOUBLE PRECISION DEFAULT 0.0,
+            gold_etf_percentage DOUBLE PRECISION DEFAULT 0.0,
+            silver_etf_percentage DOUBLE PRECISION DEFAULT 0.0,
+            system_conclusion TEXT,
+            generate_system_conclusion BOOLEAN DEFAULT TRUE,
+            discussion_notes TEXT,
+            disclaimer_text TEXT,
+            total_allocation DOUBLE PRECISION DEFAULT 100.0,
+            created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_asset_allocations_client ON significia_core.asset_allocations(client_id);
+        """
+        engine.execute_query(create_asset_allocations)
