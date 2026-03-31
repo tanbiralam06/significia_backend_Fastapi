@@ -20,34 +20,14 @@ origins = [
     "http://127.0.0.1:3000",
     "https://significia.com",
     "https://www.significia.com",
+    "https://app.significia.com",
 ]
-
-from app.database.session import SessionLocal
-from app.models.api_key import ApiKey
-
-class DynamicCORSMiddleware(CORSMiddleware):
-    def is_allowed_origin(self, origin: str) -> bool:
-        if super().is_allowed_origin(origin):
-            return True
-            
-        try:
-            db = SessionLocal()
-            try:
-                api_keys = db.query(ApiKey).filter(ApiKey.is_active == True).all()
-                for ak in api_keys:
-                    if ak.allowed_domains and origin in ak.allowed_domains:
-                        return True
-            finally:
-                db.close()
-        except Exception:
-            pass
-        return False
 
 # Set all CORS enabled origins
 app.add_middleware(
-    DynamicCORSMiddleware,
+    CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://.*\.vercel\.app|http://.*\.localhost:3000",
+    allow_origin_regex=r"https://.*\.vercel\.app|http://localhost:3000",
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -58,5 +38,7 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# In root path, also mount the health router for load balancers
-app.include_router(api_router)
+# Health check route for load balancers
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
