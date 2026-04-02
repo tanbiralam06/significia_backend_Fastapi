@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from app.core.timezone import get_now_ist
 from typing import Optional, Dict, Any
 from jose import jwt
 
@@ -6,9 +7,9 @@ from app.core.config import settings
 
 def create_access_token(subject: str, tenant_id: str, role: str, expires_delta: Optional[timedelta] = None) -> str:
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = get_now_ist() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = get_now_ist() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode = {
         "exp": expire,
@@ -23,9 +24,9 @@ def create_access_token(subject: str, tenant_id: str, role: str, expires_delta: 
 
 def create_refresh_token(subject: str, tenant_id: str, expires_delta: Optional[timedelta] = None) -> str:
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = get_now_ist() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = get_now_ist() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
         
     to_encode = {
         "exp": expire,
