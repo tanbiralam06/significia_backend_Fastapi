@@ -3,7 +3,7 @@ Client Authentication Routes — Bridge Architecture
 ───────────────────────────────────────────────────
 Client login now verifies credentials through the Bridge.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -27,50 +27,52 @@ client_auth_service = ClientAuthService()
 
 @router.post("/bridge/login", response_model=dict)
 async def login_bridge(
-    request: ClientLoginRequest,
+    request: Request,
+    login_data: ClientLoginRequest,
     tenant: Tenant = Depends(get_current_tenant),
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
     """
     Unified tenant-domain login via the Bridge.
     Tries Client logic first, then falls back to IA Staff (Master/Owner) logic.
+    Verification (including password & lockout) is now handled entirely on the Bridge.
     """
     user_id = None
     role = "client"
     user_name = "User"
-    password_hash = None
+    client_ip = request.client.host if request.client else "0.0.0.0"
 
     try:
-        # 1. Attempt Client Verification
-        client_data = await bridge.post("/auth/verify-client", {
-            "email": request.email,
-        })
+        # 1. Attempt Client Verification (Now including password & IP on Bridge)
+        payload = {
+            "email": login_data.email,
+            "password": login_data.password,
+            "ip": client_ip
+        }
+        client_data = await bridge.post("/auth/verify-client", payload)
         user_id = client_data["id"]
         role = "client"
-        user_name = client_data["client_name"]
-        password_hash = client_data["password_hash"]
+        user_name = client_data["name"]
         
-        # Verify password for clients (Backend-Side)
-        from app.core.security import verify_password
-        if not verify_password(request.password, password_hash):
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-
     except HTTPException as e:
         if e.status_code == 401:
             # 2. Fallback: Attempt IA Master / Staff Verification
-            # IA Staff verification is performed ENTIRELY on the Bridge for data sovereignty
             try:
                 ia_data = await bridge.post("/auth/verify-ia-user", {
-                    "email": request.email,
-                    "password": request.password
+                    "email": login_data.email,
+                    "password": login_data.password,
+                    "ip": client_ip
                 })
                 user_id = ia_data["id"]
                 user_name = ia_data["name"]
                 role = ia_data["role"]
-                # password verified on Bridge
-            except HTTPException:
+            except HTTPException as inner_e:
+                if inner_e.status_code == 423:
+                    raise inner_e # Pass through lockout
                 # If fallback also fails, raise 401
                 raise HTTPException(status_code=401, detail="Invalid email or password")
+        elif e.status_code == 423:
+            raise e # Pass through lockout
         else:
             raise
 
@@ -94,7 +96,7 @@ async def login_bridge(
             "id": str(user_id),
             "name": user_name,
             "role": role,
-            "email": request.email,
+            "email": login_data.email,
         },
         "subdomain": tenant.subdomain,
     }

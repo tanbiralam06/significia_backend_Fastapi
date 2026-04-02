@@ -11,7 +11,7 @@ When an IA staff member logs into bunty.com:
   5. Backend generates a JWT token with the tenant_id claim
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -41,32 +41,36 @@ class IAStaffLoginResponse(BaseModel):
 
 @router.post("/login", response_model=IAStaffLoginResponse)
 async def ia_staff_login(
-    request: IAStaffLoginRequest,
+    request: Request,  # Added to capture IP
+    login_data: IAStaffLoginRequest,
     tenant: Tenant = Depends(get_current_tenant),
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
     """
     IA Staff login endpoint.
     
-    The frontend on bunty.com calls this with email/password.
-    The tenant is resolved from the Host header (bunty.com → Tenant).
+    The frontend calls this with email/password.
     Credentials are verified through the Bridge against the IA's local DB.
     """
+    client_ip = request.client.host if request.client else "0.0.0.0"
+
     # Authenticate via Bridge
     try:
-        print(f"[AUTH DEBUG] Attempting IA login for: {request.email} (Proxying to Bridge)")
-        # We now send BOTH email and password to the Bridge for secure, local verification
+        print(f"[AUTH DEBUG] Attempting IA login for: {login_data.email} (Proxying to Bridge)")
+        # We now send email, password, and IP to the Bridge
         user_data = await bridge.post("/auth/verify-ia-user", {
-            "email": request.email,
-            "password": request.password
+            "email": login_data.email,
+            "password": login_data.password,
+            "ip": client_ip
         })
         print(f"[AUTH DEBUG] Bridge login SUCCESS: User {user_data.get('email')} verified locally")
     except HTTPException as e:
         if e.status_code == 401:
             raise HTTPException(401, "Invalid email or password")
+        if e.status_code == 423:
+            raise HTTPException(423, e.detail)
         raise
 
-    # Generate JWT tokens
     access_token = create_access_token(
         subject=user_data["id"],
         tenant_id=str(tenant.id),
