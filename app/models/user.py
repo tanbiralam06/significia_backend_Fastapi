@@ -22,6 +22,10 @@ class User(Base):
     def company_name(self) -> str:
         return self.tenant.name if self.tenant else ""
 
+    @property
+    def is_profile_completed(self) -> bool:
+        return self.tenant.is_profile_completed if self.tenant else False
+
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     email_normalized: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     is_email_verified: Mapped[bool] = mapped_column(Boolean, default=False)  # Renamed from email_verified

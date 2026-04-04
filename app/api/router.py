@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.api.deps import require_profile_completed
 from app.api.v1 import (
     auth_routes, client_auth_routes, admin_routes, 
     client_routes, ia_master_routes,
@@ -25,11 +26,11 @@ api_router.include_router(bridge_routes.router, prefix="/bridge", tags=["Bridge 
 api_router.include_router(tenant_routes.router, prefix="/tenants", tags=["Tenant Management"])
 
 # ── Data Routes (Bridge + Legacy) ───────────────────────────────────
-api_router.include_router(client_routes.router, prefix="/master", tags=["Master Data - Clients"])
+api_router.include_router(client_routes.router, prefix="/master", tags=["Master Data - Clients"], dependencies=[Depends(require_profile_completed)])
 api_router.include_router(ia_master_routes.router, prefix="/ia-master", tags=["Master Data - Investment Advisor"])
-api_router.include_router(financial_analysis_routes.router, prefix="/financial-analysis", tags=["Financial Analysis"])
-api_router.include_router(risk_profile_routes.router, prefix="/risk-profile", tags=["Risk Profile"])
-api_router.include_router(asset_allocation_routes.router, prefix="/asset-allocation", tags=["Asset Allocation"])
+api_router.include_router(financial_analysis_routes.router, prefix="/financial-analysis", tags=["Financial Analysis"], dependencies=[Depends(require_profile_completed)])
+api_router.include_router(risk_profile_routes.router, prefix="/risk-profile", tags=["Risk Profile"], dependencies=[Depends(require_profile_completed)])
+api_router.include_router(asset_allocation_routes.router, prefix="/asset-allocation", tags=["Asset Allocation"], dependencies=[Depends(require_profile_completed)])
 
 @api_router.get("/health", status_code=200)
 def health_check() -> dict:

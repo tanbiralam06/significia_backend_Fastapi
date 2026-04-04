@@ -9,7 +9,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.responses import Response
 
-from app.api.deps import get_bridge_client, get_current_tenant
+from app.api.deps import get_bridge_client, get_current_tenant, get_db
+from sqlalchemy.orm import Session
 from app.services.bridge_client import BridgeClient
 from app.models.tenant import Tenant
 
@@ -49,6 +50,8 @@ async def create_ia_entry(
     ia_logo: Optional[UploadFile] = File(None),
     employee_certificates: List[UploadFile] = File([]),
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_current_tenant)
 ):
     """
     Forward IA Registration to the local Bridge service.
@@ -87,7 +90,14 @@ async def create_ia_entry(
         # Note: employee_certificates handling could be added if needed on Bridge side
         
         # 3. Forward to Bridge
-        return await bridge.post_multipart("/ia-master", data=data, files=files)
+        response = await bridge.post_multipart("/ia-master", data=data, files=files)
+
+        # 4. Success check and Tenant state update
+        if response:
+            check_and_update_profile_completion(db, tenant, response)
+            response["is_profile_completed"] = tenant.is_profile_completed
+                
+        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bridge Registration Failed: {str(e)}")
@@ -116,6 +126,8 @@ async def update_ia_entry(
     ia_logo: Optional[UploadFile] = File(None),
     employee_certificates: List[UploadFile] = File([]),
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+    tenant: Tenant = Depends(get_current_tenant)
 ):
     """
     Update IA Registration via the Bridge.
@@ -146,7 +158,17 @@ async def update_ia_entry(
             files["ia_logo"] = (ia_logo.filename, await ia_logo.read(), ia_logo.content_type)
         
         # 3. Forward to Bridge
-        return await bridge.post_multipart("/ia-master", data=data, files=files)
+        response = await bridge.post_multipart("/ia-master", data=data, files=files)
+
+        # 4. Success check and Tenant state update
+        mandatory_fields = ["ia_registration_number", "registered_address", "bank_account_number", "ifsc_code"]
+        
+        # 4. Process response and update completion status
+        if response:
+            check_and_update_profile_completion(db, tenant, response)
+            response["is_profile_completed"] = tenant.is_profile_completed
+            
+        return response
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Bridge Update Failed: {str(e)}")

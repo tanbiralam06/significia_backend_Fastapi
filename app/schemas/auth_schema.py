@@ -17,6 +17,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     subdomain: Optional[str] = None
+    is_profile_completed: bool = False
 
 class UserResponse(BaseModel):
     id: uuid.UUID
@@ -24,6 +25,8 @@ class UserResponse(BaseModel):
     role: str
     tenant_id: uuid.UUID
     company_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    is_profile_completed: bool = False
     
     class Config:
         from_attributes = True

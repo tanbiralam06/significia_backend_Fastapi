@@ -98,7 +98,8 @@ class AuthService:
         return TokenResponse(
             access_token=access_token, 
             refresh_token=refresh_token,
-            subdomain=subdomain
+            subdomain=subdomain,
+            is_profile_completed=tenant.is_profile_completed if tenant else False
         )
 
     def refresh_access_token(self, db: Session, refresh_token: str) -> TokenResponse:
@@ -116,5 +117,6 @@ class AuthService:
         return TokenResponse(
             access_token=new_access_token, 
             refresh_token=refresh_token,
-            subdomain=subdomain
+            subdomain=subdomain,
+            is_profile_completed=tenant.is_profile_completed if tenant else False
         )

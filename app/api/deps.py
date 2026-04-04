@@ -94,6 +94,18 @@ def get_current_ia_owner(current_user: User = Depends(get_current_user)) -> User
         )
     return current_user
 
+def require_profile_completed(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Dependency to ensure the IA Master has completed their institutional profile.
+    Blocks access to core features if the profile is incomplete.
+    """
+    if current_user.role == "owner" and not current_user.is_profile_completed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="PROFILE_INCOMPLETE"
+        )
+    return current_user
+
 def get_tenant_by_slug(
     x_tenant_slug: str | None = Header(None, alias="X-Tenant-Slug"),
     host: str | None = Header(None),

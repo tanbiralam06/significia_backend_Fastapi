@@ -19,6 +19,7 @@ class Tenant(Base):
     custom_domain: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     billing_plan: Mapped[str] = mapped_column(String(50), default="free")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_profile_completed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
     # ── Bridge Architecture Fields ──────────────────────────────────
     # The URL where this tenant's Bridge is reachable (e.g. https://bridge.bunty.com)
