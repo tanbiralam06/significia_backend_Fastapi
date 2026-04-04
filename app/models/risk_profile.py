@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.database.base import SiloBase
+from app.core.timezone import get_now_ist
 
 
 class RiskAssessment(SiloBase):
@@ -52,8 +53,8 @@ class RiskAssessment(SiloBase):
     form_name: Mapped[str] = mapped_column(String(255), default="Sample", server_default="Sample")
 
     # Timestamps
-    assessment_timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    assessment_timestamp: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
 
     # Relationships
     client: Mapped["ClientProfile"] = relationship("ClientProfile", foreign_keys=[client_id])
@@ -72,7 +73,7 @@ class ClientRiskMaster(SiloBase):
     ia_registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
     category_name: Mapped[str] = mapped_column(String(100), nullable=False)
     portfolio_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
 
     # Relationships
     client: Mapped["ClientProfile"] = relationship("ClientProfile", foreign_keys=[client_id])
@@ -93,8 +94,8 @@ class RiskQuestionnaire(SiloBase):
     max_possible_score: Mapped[float] = mapped_column(Integer, default=0)
     disclaimer: Mapped[Optional[str]] = mapped_column(Text)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
 
 
 class CustomRiskAssessment(SiloBase):

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.database.base import SiloBase
+from app.core.timezone import get_now_ist
 
 class ClientProfile(SiloBase):
     __tablename__ = "clients"
@@ -79,8 +80,8 @@ class ClientProfile(SiloBase):
     client_signature_path: Mapped[Optional[str]] = mapped_column(String(512))
     advisor_signature_path: Mapped[Optional[str]] = mapped_column(String(512))
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
 
     # Assignment
     assigned_employee_id: Mapped[Optional[uuid.UUID]] = mapped_column(
@@ -103,7 +104,7 @@ class ClientDocument(SiloBase):
     client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     document_type: Mapped[str] = mapped_column(String(100), nullable=False)
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     
     # Relationships
     client: Mapped["ClientProfile"] = relationship("ClientProfile", back_populates="documents")

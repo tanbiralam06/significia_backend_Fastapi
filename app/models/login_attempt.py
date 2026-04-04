@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID, INET
 
 from app.database.base import Base
+from app.core.timezone import get_now_ist
 
 class LoginAttempt(Base):
     __tablename__ = "login_attempts"
@@ -19,4 +20,4 @@ class LoginAttempt(Base):
     success: Mapped[bool] = mapped_column(Boolean, default=False)
     failure_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)

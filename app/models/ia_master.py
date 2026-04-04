@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database.base import SiloBase, Base
+from app.core.timezone import get_now_ist
 
 class IAMaster(Base):
     __tablename__ = "ia_master"
@@ -48,8 +49,8 @@ class IAMaster(Base):
     max_client_permit: Mapped[int] = mapped_column(default=10, server_default="10")
     current_client_count: Mapped[int] = mapped_column(default=0, server_default="0")
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
 
     # Relationships
     employees: Mapped[List["EmployeeDetails"]] = relationship(
@@ -72,7 +73,7 @@ class EmployeeDetails(Base):
     date_of_registration_expiry: Mapped[Optional[Date]] = mapped_column(Date)
     certificate_path: Mapped[Optional[str]] = mapped_column(String(512))
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     
     # Relationships
     ia_master: Mapped["IAMaster"] = relationship("IAMaster", back_populates="employees")
@@ -91,7 +92,7 @@ class AuditTrail(Base):
     changes: Mapped[Optional[str]] = mapped_column(Text)
     user_ip: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
 
 class ContactPerson(Base):
     __tablename__ = "contact_persons"

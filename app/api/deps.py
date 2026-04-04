@@ -3,6 +3,7 @@ import hashlib
 import logging
 from typing import Generator, List, Optional, Any
 from datetime import datetime, timezone
+from app.core.timezone import get_now_ist, to_ist as make_aware_ist
 
 from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
@@ -64,8 +65,8 @@ def get_current_user(
             raise HTTPException(status_code=403, detail="User has no tenant assignment")
         if not tenant.is_active:
             raise HTTPException(status_code=403, detail="Your organization account is deactivated.")
-        if tenant.plan_expiry_date and tenant.plan_expiry_date < datetime.now(timezone.utc):
-             raise HTTPException(status_code=403, detail="Your subscription plan has expired. Please renew to continue.")
+        if tenant.plan_expiry_date and make_aware_ist(tenant.plan_expiry_date) < get_now_ist():
+            raise HTTPException(status_code=403, detail="Your subscription plan has expired. Please renew to continue.")
              
     return user
 
@@ -190,8 +191,8 @@ def get_current_tenant(
     if not tenant.is_active:
         raise HTTPException(status_code=403, detail="Tenant is inactive")
 
-    if tenant.plan_expiry_date and tenant.plan_expiry_date < datetime.now(timezone.utc):
-        raise HTTPException(status_code=403, detail="Tenant subscription has expired")
+    if tenant.plan_expiry_date and make_aware_ist(tenant.plan_expiry_date) < get_now_ist():
+        raise HTTPException(status_code=403, detail="Your subscription plan has expired. Please renew to continue.")
 
     return tenant
 

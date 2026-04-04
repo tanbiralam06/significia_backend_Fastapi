@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database.base import Base
+from app.core.timezone import get_now_ist
 
 
 class Tenant(Base):

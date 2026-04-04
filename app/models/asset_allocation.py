@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database.base import SiloBase
+from app.core.timezone import get_now_ist
 
 class AssetAllocation(SiloBase):
     __tablename__ = "asset_allocations"
@@ -46,8 +47,8 @@ class AssetAllocation(SiloBase):
     
     total_allocation: Mapped[float] = mapped_column(Float, default=100.0)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
 
     # Relationships
     client: Mapped["ClientProfile"] = relationship("ClientProfile")

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.database.base import SiloBase
+from app.core.timezone import get_now_ist
 
 
 class FinancialAnalysisProfile(SiloBase):
@@ -60,7 +61,7 @@ class FinancialAnalysisProfile(SiloBase):
     discussion_notes: Mapped[Optional[str]] = mapped_column(Text)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
 
     # Relationships
     client: Mapped["ClientProfile"] = relationship("ClientProfile", foreign_keys=[client_id])
