@@ -33,8 +33,8 @@ async def list_team_members(
                 "role": emp.get("role", "staff"),
                 "status": "active" if emp.get("is_active") else "inactive",
                 "full_name": emp.get("name", "Staff Member"),
-                "phone_number": "N/A",
-                "designation": emp.get("designation", "Staff"),
+                "phone_number": emp.get("phone_number") or "N/A",
+                "designation": emp.get("designation") or "Staff",
                 "address": None,
                 "created_at": emp.get("created_at")
             })
