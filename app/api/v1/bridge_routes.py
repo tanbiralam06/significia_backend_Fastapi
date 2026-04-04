@@ -30,6 +30,8 @@ from app.schemas.bridge_schema import (
     BridgeTokenRegenerateResponse,
     TenantUpdateRequest,
     TenantUpdateResponse,
+    TenantAdminUpdateRequest,
+    TenantStatusToggleRequest,
 )
 from app.services.bridge_service import BridgeService
 
@@ -99,7 +101,6 @@ def list_all_bridges(
     """List all tenants with their Bridge connection status."""
     return bridge_service.list_all_bridges(db)
 
-
 @router.get("/tenants/{tenant_id}/bridge", response_model=BridgeStatusResponse)
 def get_bridge_status(
     tenant_id: uuid.UUID,
@@ -108,6 +109,30 @@ def get_bridge_status(
 ):
     """Get Bridge status for a specific tenant."""
     return bridge_service.get_bridge_status(db, tenant_id)
+
+
+@router.patch("/tenants/{tenant_id}", response_model=TenantUpdateResponse)
+def update_tenant_admin(
+    tenant_id: uuid.UUID,
+    request: TenantAdminUpdateRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """Super Admin only — update core tenant settings (name, limit, plan, etc.)."""
+    result = bridge_service.update_tenant_admin(db, tenant_id, request.dict(exclude_unset=True))
+    result["bridge_status"] = "N/A" # update_tenant_admin doesn't return bridge_status by default
+    return result
+
+
+@router.post("/tenants/{tenant_id}/status")
+def toggle_tenant_status(
+    tenant_id: uuid.UUID,
+    request: TenantStatusToggleRequest,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_super_admin),
+):
+    """Super Admin only — activate or deactivate a tenant."""
+    return bridge_service.toggle_tenant_status(db, tenant_id, request.is_active)
 
 
 @router.post("/tenants/{tenant_id}/regenerate-token", response_model=BridgeTokenRegenerateResponse)

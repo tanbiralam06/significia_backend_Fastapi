@@ -124,13 +124,10 @@ class BridgeService:
         tenant: Tenant,
         client_count: int,
     ) -> dict:
-        """
-        Process a periodic heartbeat from the Bridge.
-        Updates the tenant's status, last heartbeat time, and administrative seat count.
-        
-        NOTE: client_count here represents IA Master + Staff accounts (Active Seats).
-        Investors (End Clients) are not counted in this limit.
-        """
+        """Process heartbeat from the Bridge, update counts, and check billing compliance."""
+        if not tenant.is_active:
+            raise HTTPException(403, "Account deactivated. Please contact support.")
+            
         logger = logging.getLogger("backend.bridge_service")
         
         try:
@@ -206,9 +203,8 @@ class BridgeService:
             "bridge_registration_token": tenant.bridge_registration_token,
             "bridge_registered_at": tenant.bridge_registered_at,
             "bridge_last_heartbeat": tenant.bridge_last_heartbeat,
-            "max_client_permit": tenant.max_client_permit,
-            "current_client_count": tenant.current_client_count,
             "billing_plan": tenant.billing_plan,
+            "is_active": tenant.is_active,
         }
 
     # ── List All Bridges (Super Admin Dashboard) ────────────────────
@@ -230,6 +226,7 @@ class BridgeService:
                 "current_client_count": t.current_client_count,
                 "billing_plan": t.billing_plan,
                 "custom_domain": t.custom_domain,
+                "is_active": t.is_active,
             }
             for t in tenants
         ]
@@ -284,4 +281,64 @@ class BridgeService:
             "custom_domain": tenant.custom_domain,
             "bridge_status": tenant.bridge_status,
             "message": "Organization profile updated successfully"
+        }
+
+    # ── Super Admin: Toggle Tenant Active Status ────────────────────
+    @staticmethod
+    def toggle_tenant_status(db: Session, tenant_id: uuid.UUID, is_active: bool) -> dict:
+        """Super Admin only — quickly enable or disable a tenant's access (soft kill switch)."""
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        
+        tenant.is_active = is_active
+        db.commit()
+        
+        status_text = "activated" if is_active else "deactivated"
+        return {
+            "tenant_id": str(tenant.id),
+            "is_active": tenant.is_active,
+            "message": f"Tenant {tenant.name} has been {status_text}."
+        }
+
+    # ── Super Admin: Update Tenant Details ──────────────────────────
+    @staticmethod
+    def update_tenant_admin(db: Session, tenant_id: uuid.UUID, data: dict) -> dict:
+        """Super Admin only — update core tenant settings."""
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        
+        # Update allowed fields
+        if "name" in data: tenant.name = data["name"]
+        if "subdomain" in data: 
+            subdomain = data["subdomain"].lower().strip()
+            # Check for uniqueness if changing subdomain
+            if subdomain != tenant.subdomain:
+                existing = db.query(Tenant).filter(Tenant.subdomain == subdomain).first()
+                if existing: raise HTTPException(400, "Subdomain already taken")
+                tenant.subdomain = subdomain
+        
+        if "custom_domain" in data:
+            custom_domain = data["custom_domain"].lower().strip() if data["custom_domain"] else None
+            # Check for uniqueness if changing domain
+            if custom_domain != tenant.custom_domain and custom_domain is not None:
+                existing = db.query(Tenant).filter(Tenant.custom_domain == custom_domain).first()
+                if existing: raise HTTPException(400, "Custom domain already in use")
+            tenant.custom_domain = custom_domain
+            
+        if "max_client_permit" in data: tenant.max_client_permit = data["max_client_permit"]
+        if "billing_plan" in data: tenant.billing_plan = data["billing_plan"]
+        
+        db.commit()
+        db.refresh(tenant)
+        
+        return {
+            "tenant_id": str(tenant.id),
+            "tenant_name": tenant.name,
+            "subdomain": tenant.subdomain,
+            "custom_domain": tenant.custom_domain,
+            "max_client_permit": tenant.max_client_permit,
+            "billing_plan": tenant.billing_plan,
+            "message": "Tenant details updated successfully."
         }

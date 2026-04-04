@@ -35,17 +35,22 @@ class AdminService:
             "name_of_entity": tenant.name,
             "nature_of_entity": request.nature_of_entity,
             "ia_registration_number": request.registration_no,
+            "date_of_registration": request.registration_date,
             "date_of_registration_expiry": request.license_expiry_date,
             "registered_email_id": request.email,
             "is_renewal": request.is_renewal,
             "renewal_certificate_no": request.renewal_certificate_no,
             "renewal_expiry_date": request.renewal_expiry_date,
             "relationship_manager_id": request.relationship_manager_id,
-            "date_of_birth": "1990-01-01", # Placeholder, IA will update in profile
-            "bank_account_number": "", # Placeholder
-            "bank_name": "",
-            "bank_branch": "",
-            "ifsc_code": ""
+            "date_of_birth": request.date_of_birth,
+            "registered_address": request.registered_address,
+            "registered_contact_number": request.registered_contact_number,
+            "office_contact_number": request.office_contact_number,
+            "cin_number": request.cin_number,
+            "bank_account_number": request.bank_account_number,
+            "bank_name": request.bank_name,
+            "bank_branch": request.bank_branch,
+            "ifsc_code": request.ifsc_code
         }
         db_ia = self.ia_repo.create(db, ia_data)
 

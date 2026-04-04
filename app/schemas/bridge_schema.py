@@ -34,6 +34,7 @@ class BridgeStatusResponse(BaseModel):
     current_client_count: int
     billing_plan: str
     custom_domain: Optional[str] = None
+    is_active: bool = True
 
 class TenantProvisionRequest(BaseModel):
     company_name: str
@@ -62,3 +63,13 @@ class TenantUpdateResponse(BaseModel):
     custom_domain: Optional[str] = None
     bridge_status: str
     message: str
+
+class TenantAdminUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    subdomain: Optional[str] = None
+    custom_domain: Optional[str] = None
+    max_client_permit: Optional[int] = None
+    billing_plan: Optional[str] = None
+
+class TenantStatusToggleRequest(BaseModel):
+    is_active: bool

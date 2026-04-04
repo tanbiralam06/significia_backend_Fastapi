@@ -21,7 +21,21 @@ class ClientProvisionRequest(BaseModel):
     # New registration fields
     nature_of_entity: str = "Individual"
     registration_no: str
+    registration_date: date_type
     license_expiry_date: date_type
+    
+    # Newly added required fields
+    date_of_birth: date_type
+    registered_address: str
+    registered_contact_number: str
+    office_contact_number: Optional[str] = None
+    cin_number: Optional[str] = None
+    
+    # Banking details
+    bank_name: str
+    bank_account_number: str
+    bank_branch: str
+    ifsc_code: str
     
     # Renewal fields
     is_renewal: bool = False
