@@ -137,6 +137,52 @@ async def upload_client_document_bridge(
     return result
 
 
+@router.get("/blank-form")
+async def download_blank_registration_form(
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate and download a blank registration form, pre-filled with IA details.
+    """
+    try:
+        # 1. Fetch IA Master info from Bridge
+        ia_data = await bridge.get("/ia-master")
+        ia_name = ia_data.get("name_of_ia", "____________________________")
+        ia_reg_no = ia_data.get("ia_registration_number", "________________")
+        
+        # 2. Resolve Logo
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path")
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                signed_url = url_resp.get("url")
+                if signed_url:
+                    logo_path = await resolve_logo_to_local_path(signed_url, db)
+            except Exception as e:
+                import logging
+                logging.getLogger("significia.clients").warning(f"Failed to resolve IA logo for blank form: {e}")
+
+        # 3. Generate PDF
+        pdf_buffer = generate_client_blank_form(
+            ia_logo_path=logo_path,
+            ia_name=ia_name,
+            ia_reg_no=ia_reg_no
+        )
+        
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": "attachment; filename=Client_Registration_Form.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate blank form: {str(e)}")
+
+
 @router.get("/billing/client-count", response_model=dict)
 async def get_client_count_bridge(
     bridge: BridgeClient = Depends(get_bridge_client),

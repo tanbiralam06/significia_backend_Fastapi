@@ -45,7 +45,11 @@ def resolve_logo_path(logo_path: Optional[str]) -> Optional[str]:
     return None
 
 
-def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO:
+def generate_client_blank_form(
+    ia_logo_path: Optional[str] = None,
+    ia_name: str = "",
+    ia_reg_no: str = ""
+) -> io.BytesIO:
     """Generate a professionally styled, grid-based blank Client Registration Form."""
     if not PDF_AVAILABLE:
         raise ImportError("reportlab is not installed.")
@@ -93,13 +97,17 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
 
     # Advisor Info Grid
     info_data = [
-        [Paragraph("Advisor Name:", label_style), "____________________________", Paragraph("Advisor ID:", label_style), "________________"],
-        [Paragraph("Client Code:", label_style), "____________________________", Paragraph("Date:", label_style), "___________"]
+        [Paragraph("Advisor Name:", label_style), Paragraph(ia_name, normal_label_style), Paragraph("Advisor ID:", label_style), Paragraph(ia_reg_no, normal_label_style)],
+        [Paragraph("Client Code:", label_style), "", Paragraph("Date:", label_style), datetime.now().strftime("%d-%m-%Y")]
     ]
     t_info = Table(info_data, colWidths=[110, 230, 90, 105], rowHeights=25)
     t_info.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 5)
+        ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+        ('LINEBELOW', (1,0), (1,0), 0.5, colors.black),
+        ('LINEBELOW', (3,0), (3,0), 0.5, colors.black),
+        ('LINEBELOW', (1,1), (1,1), 0.5, colors.black),
+        ('LINEBELOW', (3,1), (3,1), 0.5, colors.black),
     ]))
     elements.append(t_info)
     elements.append(Spacer(1, 5))
@@ -107,25 +115,28 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
     # 1. PERSONAL INFORMATION
     add_section_header("1. Personal Details")
     personal_data = [
-        [Paragraph("Full Name:", label_style), "________________________________________", Paragraph("DOB:", label_style), "___________"],
-        [Paragraph("Gender:", label_style), "__________________", Paragraph("Marital Status:", label_style), "__________________"],
-        [Paragraph("PAN Number:", label_style), "__________________", Paragraph("Aadhar No:", label_style), "__________________"],
-        [Paragraph("Nationality:", label_style), "__________________", Paragraph("Passport No:", label_style), "__________________"],
-        [Paragraph("Occupation:", label_style), "________________________________________", "", ""],
-        [Paragraph("Father's Name:", label_style), "________________________________________", "", ""],
-        [Paragraph("Mother's Name:", label_style), "________________________________________", "", ""],
-        [Paragraph("Contact Number:", label_style), "__________________", Paragraph("Email ID:", label_style), "__________________"],
-        [Paragraph("Residential Status:", label_style), "__________________", Paragraph("Tax Residency:", label_style), "__________________"],
-        [Paragraph("PEP Status:", label_style), "________________________________________", "", ""],
-        [Paragraph("Permanent Address:", label_style), "________________________________________________________________________", "", ""],
-        ["", "________________________________________________________________________", "", ""]
+        [Paragraph("Full Name:", label_style), "", Paragraph("DOB:", label_style), ""],
+        [Paragraph("Gender:", label_style), "", Paragraph("Marital Status:", label_style), ""],
+        [Paragraph("PAN Number:", label_style), "", Paragraph("Aadhar No:", label_style), ""],
+        [Paragraph("Nationality:", label_style), "", Paragraph("Passport No:", label_style), ""],
+        [Paragraph("CKYC Number:", label_style), "", Paragraph("CKYC Verified:", label_style), "Yes / No"],
+        [Paragraph("Occupation:", label_style), "", "", ""],
+        [Paragraph("Father's Name:", label_style), "", "", ""],
+        [Paragraph("Mother's Name:", label_style), "", "", ""],
+        [Paragraph("Contact Number:", label_style), "", Paragraph("Email ID:", label_style), ""],
+        [Paragraph("Residential Status:", label_style), "", Paragraph("Tax Residency:", label_style), ""],
+        [Paragraph("PEP Status:", label_style), "", "", ""],
+        [Paragraph("Permanent Address:", label_style), "", "", ""],
+        ["", "", "", ""]
     ]
     t_personal = Table(personal_data, colWidths=[110, 185, 90, 150], rowHeights=24)
     t_personal.setStyle(TableStyle([
         ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('SPAN', (1,0), (2,0)), ('SPAN', (1,4), (3,4)), ('SPAN', (1,5), (3,5)),
-        ('SPAN', (1,6), (3,6)), ('SPAN', (1,9), (3,9)), ('SPAN', (1,10), (3,10)), ('SPAN', (1,11), (3,11)),
+        # Row 0: Full Name takes cols 1 and 2, but DOB is in col 2. Mistake in original code.
+        # Fixed: Spanning only where columns are explicitly empty.
+        ('SPAN', (1,5), (3,5)), ('SPAN', (1,6), (3,6)), ('SPAN', (1,7), (3,7)),
+        ('SPAN', (1,10), (3,10)), ('SPAN', (1,11), (3,11)), ('SPAN', (1,12), (3,12)),
         ('PADDING', (0,0), (-1,-1), 5)
     ]))
     elements.append(t_personal)
@@ -134,8 +145,8 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
     # 2. FAMILY DETAILS
     add_section_header("2. Family / Spouse Details")
     family_data = [
-        [Paragraph("Spouse Name:", label_style), "________________________________", Paragraph("Spouse DOB:", label_style), "___________"],
-        [Paragraph("Nominee Name:", label_style), "________________________________", Paragraph("Relationship:", label_style), "___________"]
+        [Paragraph("Spouse Name:", label_style), "", Paragraph("Spouse DOB:", label_style), ""],
+        [Paragraph("Nominee Name:", label_style), "", Paragraph("Relationship:", label_style), ""]
     ]
     t_family = Table(family_data, colWidths=[110, 185, 90, 150], rowHeights=24)
     t_family.setStyle(TableStyle([
@@ -149,10 +160,10 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
     # 3. FINANCIAL INFORMATION
     add_section_header("3. Financial Information")
     financial_data = [
-        [Paragraph("Annual Income:", label_style), "Rs. ____________________", Paragraph("Net Worth:", label_style), "Rs. ______________"],
-        [Paragraph("Income Source:", label_style), "________________________________", Paragraph("FATCA Status:", label_style), "_______________"],
-        [Paragraph("Portfolio Value:", label_style), "Rs. ____________________", "", ""],
-        [Paragraph("Portfolio Composition:", label_style), "____________________________________________________________", "", ""]
+        [Paragraph("Annual Income:", label_style), "Rs.", Paragraph("Net Worth:", label_style), "Rs."],
+        [Paragraph("Income Source:", label_style), "", Paragraph("FATCA Status:", label_style), ""],
+        [Paragraph("Portfolio Value:", label_style), "Rs.", "", ""],
+        [Paragraph("Portfolio Composition:", label_style), "", "", ""]
     ]
     t_financial = Table(financial_data, colWidths=[110, 185, 90, 150], rowHeights=24)
     t_financial.setStyle(TableStyle([
@@ -167,9 +178,9 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
     # 4. BANKING & TRADING DETAILS
     add_section_header("4. Banking & Trading Details")
     banking_data = [
-        [Paragraph("Bank Name:", label_style), "________________________________", Paragraph("Branch:", label_style), "________________"],
-        [Paragraph("Account Number:", label_style), "________________________________", Paragraph("IFSC Code:", label_style), "________________"],
-        [Paragraph("Demat A/c No:", label_style), "________________________________", Paragraph("Trading A/c:", label_style), "________________"]
+        [Paragraph("Bank Name:", label_style), "", Paragraph("Branch:", label_style), ""],
+        [Paragraph("Account Number:", label_style), "", Paragraph("IFSC Code:", label_style), ""],
+        [Paragraph("Demat A/c No:", label_style), "", Paragraph("Trading A/c:", label_style), ""]
     ]
     t_banking = Table(banking_data, colWidths=[110, 185, 90, 150], rowHeights=24)
     t_banking.setStyle(TableStyle([
@@ -183,10 +194,10 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
     # 5. INVESTMENT PROFILE
     add_section_header("5. Investment Profile")
     investment_data = [
-        [Paragraph("Risk Profile:", label_style), "_________________________", Paragraph("Exp (Years):", label_style), "________"],
-        [Paragraph("Horizon:", label_style), "_________________________", Paragraph("Liquidity Needs:", label_style), "________"],
-        [Paragraph("Objectives:", label_style), "____________________________________________________________________________", "", ""],
-        ["", "____________________________________________________________________________", "", ""]
+        [Paragraph("Risk Profile:", label_style), "", Paragraph("Exp (Years):", label_style), ""],
+        [Paragraph("Horizon:", label_style), "", Paragraph("Liquidity Needs:", label_style), ""],
+        [Paragraph("Objectives:", label_style), "", "", ""],
+        ["", "", "", ""]
     ]
     t_investment = Table(investment_data, colWidths=[110, 185, 90, 150], rowHeights=24)
     t_investment.setStyle(TableStyle([
@@ -201,8 +212,8 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
     # 6. ADVISOR & OTHER DETAILS
     add_section_header("6. Advisor & Other Details")
     other_data = [
-        [Paragraph("Previous Advisor:", label_style), "________________________________", Paragraph("Referral:", label_style), "________________"],
-        [Paragraph("Declaration Date:", label_style), "________________________________", Paragraph("Signed (Y/N):", label_style), "________________"]
+        [Paragraph("Previous Advisor:", label_style), "", Paragraph("Referral:", label_style), ""],
+        [Paragraph("Declaration Date:", label_style), "", Paragraph("Signed (Y/N):", label_style), ""]
     ]
     t_other = Table(other_data, colWidths=[110, 185, 90, 150], rowHeights=24)
     t_other.setStyle(TableStyle([
@@ -211,12 +222,50 @@ def generate_client_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO
         ('PADDING', (0,0), (-1,-1), 5)
     ]))
     elements.append(t_other)
-    elements.append(Spacer(1, 20))
-
-    # 7. SIGNATURES
-    add_section_header("7. Declarations & Signatures")
     elements.append(Spacer(1, 10))
-    elements.append(Paragraph("I hereby declare that all the information provided above is true to the best of my knowledge.", normal_label_style))
+
+    # 7. FOR OFFICE USE ONLY
+    add_section_header("7. For Office Use Only (Internal)")
+    ipv_data = [
+        [Paragraph("IPV Done By:", label_style), "", Paragraph("Designation:", label_style), ""],
+        [Paragraph("IPV Date:", label_style), "", Paragraph("Signature:", label_style), ""]
+    ]
+    t_ipv = Table(ipv_data, colWidths=[110, 185, 90, 150], rowHeights=24)
+    t_ipv.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (0,0), (-1,-1), 5)
+    ]))
+    elements.append(t_ipv)
+    elements.append(Spacer(1, 15))
+
+    # 8. DOCUMENTS ATTACHED
+    add_section_header("8. Documents Attached")
+    doc_data = [
+        [Paragraph("[  ]  PAN Card", normal_label_style), Paragraph("[  ]  Aadhaar Card", normal_label_style)],
+        [Paragraph("[  ]  Address Proof (Utility/Rent)", normal_label_style), Paragraph("[  ]  Bank Proof (Cheque/Stmt)", normal_label_style)],
+        [Paragraph("[  ]  Income Proof (Last 6 Months)", normal_label_style), Paragraph("[  ]  Photographs (2 Nos)", normal_label_style)],
+        [Paragraph("[  ]  Signed Agreement", normal_label_style), Paragraph("[  ]  Signature", normal_label_style)]
+    ]
+    t_docs = Table(doc_data, colWidths=[265, 265], rowHeights=22)
+    t_docs.setStyle(TableStyle([
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('PADDING', (10,0), (-1,-1), 5)
+    ]))
+    elements.append(t_docs)
+    elements.append(Spacer(1, 15))
+
+    # 9. SIGNATURES
+    add_section_header("9. Declarations & Signatures")
+    elements.append(Spacer(1, 10))
+    declaration_text = (
+        "I hereby declare that the particulars provided above are true and correct to the best of my "
+        "knowledge and belief, and I undertake to inform the Advisor of any changes therein immediately. "
+        "I understand that in case any of the above information is found to be false, untrue, misleading, "
+        "or misrepresenting, I may be held responsible for the same."
+    )
+    elements.append(Paragraph(declaration_text, normal_label_style))
     elements.append(Spacer(1, 40))
     
     sig_data = [
