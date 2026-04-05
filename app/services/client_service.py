@@ -69,6 +69,10 @@ class ClientService:
         if ia_master.current_client_count >= ia_master.max_client_permit:
             raise ValueError(f"Maximum client permit ({ia_master.max_client_permit}) reached.")
  
+        # KYC Validation
+        if not client_in.kyc_verified:
+            raise ValueError("Please validate the KYC then Reenter the Client data")
+ 
         # Check existing
         existing = db.query(ClientProfile).filter(
             (ClientProfile.email_normalized == client_in.email.lower()) | 

@@ -248,7 +248,7 @@ class ClientPDFGenerator:
                 ("Objectives", client_data.get("investment_objectives"), True),
             ]),
             ("Declaration", [
-                ("Reg. Date", client_data.get("declaration_date")),
+                ("Agreement Date", client_data.get("agreement_date")),
                 ("IA Master", client_data.get("advisor_name")),
                 ("Statement", "I hereby confirm that all details provided are accurate to the best of my knowledge and comply with SEBI Investment Advisor guidelines. The client's identity has been verified via KYC documents.", True),
             ])

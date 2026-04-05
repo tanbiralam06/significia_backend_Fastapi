@@ -76,9 +76,17 @@ class ClientProfile(SiloBase):
     previous_advisor_name: Mapped[Optional[str]] = mapped_column(String(255))
     referral_source: Mapped[Optional[str]] = mapped_column(String(100))
     declaration_signed: Mapped[bool] = mapped_column(Boolean, default=False)
-    declaration_date: Mapped[Optional[Date]] = mapped_column(Date)
+    agreement_date: Mapped[Optional[Date]] = mapped_column(Date)
     client_signature_path: Mapped[Optional[str]] = mapped_column(String(512))
     advisor_signature_path: Mapped[Optional[str]] = mapped_column(String(512))
+
+    # KYC & IPV Details
+    kyc_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    ckyc_number: Mapped[Optional[str]] = mapped_column(String(50))
+    ipv_done_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("employee_details.id", ondelete="SET NULL"), nullable=True
+    )
+    ipv_date: Mapped[Optional[date]] = mapped_column(Date)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
@@ -87,7 +95,8 @@ class ClientProfile(SiloBase):
     assigned_employee_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("employee_details.id", ondelete="SET NULL"), nullable=True
     )
-    assigned_employee: Mapped[Optional["EmployeeDetails"]] = relationship("EmployeeDetails")
+    assigned_employee: Mapped[Optional["EmployeeDetails"]] = relationship("EmployeeDetails", foreign_keys=[assigned_employee_id])
+    ipv_done_by: Mapped[Optional["EmployeeDetails"]] = relationship("EmployeeDetails", foreign_keys=[ipv_done_by_id])
 
     # Relationships
     documents: Mapped[list["ClientDocument"]] = relationship(

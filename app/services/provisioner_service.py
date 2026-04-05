@@ -105,7 +105,7 @@ class ProvisionerService:
             previous_advisor_name VARCHAR(255),
             referral_source VARCHAR(100),
             declaration_signed BOOLEAN DEFAULT FALSE,
-            declaration_date DATE,
+            agreement_date DATE,
             client_signature_path VARCHAR(512),
             advisor_signature_path VARCHAR(512),
             

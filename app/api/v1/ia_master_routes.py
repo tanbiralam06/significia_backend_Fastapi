@@ -189,6 +189,13 @@ async def get_latest_ia(
     """Proxy Latest IA Info request to the Bridge."""
     return await bridge.get("/ia-master")
 
+@router.get("/employees", response_model=List[dict])
+async def list_ia_employees(
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Team/Employee list request to the Bridge silo."""
+    return await bridge.get("/employees")
+
 @router.get("/list", response_model=dict)
 async def get_all_ias(
     bridge: BridgeClient = Depends(get_bridge_client)

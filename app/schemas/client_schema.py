@@ -60,8 +60,14 @@ class ClientBase(BaseModel):
     previous_advisor_name: Optional[str] = None
     referral_source: Optional[str] = None
     declaration_signed: bool = False
-    declaration_date: Optional[date] = None
+    agreement_date: Optional[date] = None
     assigned_employee_id: Optional[uuid.UUID] = None
+    
+    # KYC & IPV Details
+    kyc_verified: bool = False
+    ckyc_number: Optional[str] = None
+    ipv_done_by_id: Optional[uuid.UUID] = None
+    ipv_date: Optional[date] = None
 
     @field_validator("date_of_birth")
     @classmethod
@@ -143,9 +149,15 @@ class ClientUpdate(BaseModel):
     previous_advisor_name: Optional[str] = None
     referral_source: Optional[str] = None
     declaration_signed: Optional[bool] = None
-    declaration_date: Optional[date] = None
+    agreement_date: Optional[date] = None
     is_active: Optional[bool] = None
     assigned_employee_id: Optional[uuid.UUID] = None
+
+    # KYC & IPV Details
+    kyc_verified: Optional[bool] = None
+    ckyc_number: Optional[str] = None
+    ipv_done_by_id: Optional[uuid.UUID] = None
+    ipv_date: Optional[date] = None
 
 class ClientDocumentResponse(BaseModel):
     id: uuid.UUID
@@ -165,6 +177,13 @@ class ClientResponse(ClientBase):
     
     client_signature_path: Optional[str] = None
     advisor_signature_path: Optional[str] = None
+    
+    # KYC & IPV Details
+    kyc_verified: bool
+    ckyc_number: Optional[str] = None
+    ipv_done_by_id: Optional[uuid.UUID] = None
+    ipv_date: Optional[date] = None
+
     aadhar_number: Optional[str] = None
     passport_number: Optional[str] = None
     
