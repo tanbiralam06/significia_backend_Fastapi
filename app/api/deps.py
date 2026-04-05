@@ -164,6 +164,18 @@ def get_current_ia_owner(current_user: User = Depends(get_current_user)) -> User
         )
     return current_user
 
+def get_current_ia_admin(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Relaxes the 'owner' requirement to also allow 'partner' role for administrative tasks.
+    Used for team management, etc.
+    """
+    if current_user.role not in ["owner", "partner"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access restricted to Organization Owners or Partners."
+        )
+    return current_user
+
 def require_profile_completed(current_user: User = Depends(get_current_user)) -> User:
     """
     Dependency to ensure the IA Master has completed their institutional profile.

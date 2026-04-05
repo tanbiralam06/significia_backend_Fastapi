@@ -59,13 +59,15 @@ class BridgeClient:
         self.api_secret = tenant.bridge_api_secret or ""
         self.user = user
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self, skip_content_type: bool = False) -> Dict[str, str]:
         """Build authentication headers for Bridge requests."""
         headers = {
             "Authorization": f"Bearer {self.api_secret}",
             "X-Significia-Tenant-Id": str(self.tenant_id),
-            "Content-Type": "application/json",
         }
+        if not skip_content_type:
+            headers["Content-Type"] = "application/json"
+            
         if self.user:
             headers["X-User-Id"] = str(self.user.id)
             headers["X-User-Role"] = str(self.user.role)
@@ -136,15 +138,10 @@ class BridgeClient:
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge UPLOAD] tenant={self.tenant_name} path={path} file={filename}")
 
-        headers = {
-            "Authorization": f"Bearer {self.api_secret}",
-            "X-Significia-Tenant-Id": str(self.tenant_id),
-        }
-
         async with httpx.AsyncClient(timeout=60) as client:
             try:
                 files = {"file": (filename, file_bytes, content_type)}
-                response = await client.post(url, headers=headers, files=files)
+                response = await client.post(url, headers=self._headers(skip_content_type=True), files=files)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge upload timed out. Please try again.")
@@ -156,14 +153,9 @@ class BridgeClient:
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge MULTIPART] tenant={self.tenant_name} path={path}")
 
-        headers = {
-            "Authorization": f"Bearer {self.api_secret}",
-            "X-Significia-Tenant-Id": str(self.tenant_id),
-        }
-
         async with httpx.AsyncClient(timeout=60) as client:
             try:
-                response = await client.post(url, headers=headers, data=data, files=files)
+                response = await client.post(url, headers=self._headers(skip_content_type=True), data=data, files=files)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge multipart request timed out.")

@@ -75,6 +75,9 @@ class StaffUserBase(BaseModel):
 
 class StaffUserCreate(StaffUserBase):
     password: str = Field(..., min_length=8)
+    ia_registration_number: Optional[str] = None
+    date_of_registration: Optional[date_type] = None
+    date_of_registration_expiry: Optional[date_type] = None
 
 class StaffUserUpdate(BaseModel):
     full_name: Optional[str] = None

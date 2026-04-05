@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Form, File, UploadFile
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
-from app.api.deps import get_db, get_current_ia_owner, require_profile_completed
-from app.schemas.admin_schema import StaffUserCreate, StaffUserOut, StaffUserUpdate
+from app.api.deps import get_db, get_current_ia_admin, require_profile_completed
+from app.schemas.admin_schema import StaffUserOut, StaffUserUpdate
 from app.services.admin_service import AdminService
 from app.models.user import User
 from app.services.bridge_client import BridgeClient
@@ -16,7 +16,7 @@ admin_service = AdminService()
 @router.get("/", response_model=List[StaffUserOut])
 async def list_team_members(
     db: Session = Depends(get_db),
-    current_owner: User = Depends(get_current_ia_owner),
+    current_admin: User = Depends(get_current_ia_admin),
     bridge: BridgeClient = Depends(get_bridge_client)
 ):
     """
@@ -45,10 +45,18 @@ async def list_team_members(
 
 @router.post("/", response_model=StaffUserOut, status_code=201)
 async def onboard_team_member(
-    request_data: StaffUserCreate,
-    request: Request,
+    email: str = Form(...),
+    full_name: str = Form(...),
+    password: str = Form(...),
+    role: str = Form(...),
+    designation: Optional[str] = Form(None),
+    phone_number: Optional[str] = Form(None),
+    ia_registration_number: Optional[str] = Form(None),
+    date_of_registration: Optional[str] = Form(None),
+    date_of_registration_expiry: Optional[str] = Form(None),
+    certificate: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
-    current_owner: User = Depends(get_current_ia_owner),
+    current_admin: User = Depends(get_current_ia_admin),
     bridge: BridgeClient = Depends(get_bridge_client),
     # Ensure profile is completed before onboarding others
     _ = Depends(require_profile_completed)
@@ -58,7 +66,7 @@ async def onboard_team_member(
     The new member will be counted against the organization's 'Internal User' limit.
     """
     # 1. License Check (Internal Users only)
-    tenant = current_owner.tenant
+    tenant = current_admin.tenant
     current_usage = db.query(User).filter(
         User.tenant_id == tenant.id,
         User.role.in_(["owner", "partner", "ia_staff", "analyst", "staff"])
@@ -71,7 +79,7 @@ async def onboard_team_member(
         )
 
     # 2. Prevent IA Owners from creating Super Admins
-    if request_data.role not in ["partner", "ia_staff", "analyst"]:
+    if role not in ["partner", "ia_staff", "analyst"]:
         raise HTTPException(
             status_code=400,
             detail="Invalid role. You can only onboard Partners, Staff, or Analysts."
@@ -80,25 +88,35 @@ async def onboard_team_member(
     # Mirror the user into the Bridge DB so they can login.
     # We DO NOT save them in the Master Database anymore.
     bridge_payload = {
-        "email": request_data.email,
-        "name": request_data.full_name,
-        "password": request_data.password,
-        "role": request_data.role,
-        "designation": request_data.designation,
-        "phone_number": request_data.phone_number
+        "email": email,
+        "name": full_name,
+        "password": password,
+        "role": role,
+        "designation": designation,
+        "phone_number": phone_number,
+        "ia_registration_number": ia_registration_number,
+        "date_of_registration": date_of_registration,
+        "date_of_registration_expiry": date_of_registration_expiry
     }
     
     # Send to silo and expect the bridge to create the user and return their new ID
-    bridge_res = await bridge.post("/employees", bridge_payload)
+    # Use multipart for bridge call if file is present
+    files = {}
+    if certificate:
+        content = await certificate.read()
+        files = {"certificate": (certificate.filename, content, certificate.content_type)}
+    
+    # BridgeClient post method needs support for files or we use bridge.request
+    bridge_res = await bridge.post_multipart("/employees", data=bridge_payload, files=files)
     
     return {
         "id": bridge_res.get("id"),
-        "email": request_data.email,
-        "role": request_data.role,
+        "email": email,
+        "role": role,
         "status": "active",
-        "full_name": request_data.full_name,
-        "phone_number": request_data.phone_number,
-        "designation": request_data.designation,
+        "full_name": full_name,
+        "phone_number": phone_number,
+        "designation": designation,
         "address": None,
         "last_login_at": None,
         "created_at": bridge_res.get("created_at")
@@ -110,7 +128,7 @@ async def update_team_member(
     request_data: StaffUserUpdate,
     request: Request,
     db: Session = Depends(get_db),
-    current_owner: User = Depends(get_current_ia_owner),
+    current_admin: User = Depends(get_current_ia_admin),
     bridge: BridgeClient = Depends(get_bridge_client)
 ):
     """
@@ -144,7 +162,7 @@ async def update_team_member(
 async def remove_team_member(
     user_id: UUID,
     db: Session = Depends(get_db),
-    current_owner: User = Depends(get_current_ia_owner),
+    current_admin: User = Depends(get_current_ia_admin),
     bridge: BridgeClient = Depends(get_bridge_client)
 ):
     """
