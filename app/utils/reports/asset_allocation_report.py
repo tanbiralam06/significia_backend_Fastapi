@@ -500,7 +500,7 @@ class AssetAllocationReportUtils:
 
         doc.add_heading('ASSET ALLOCATION REPORT', 0)
         
-        # Client Table
+        # 1. Client Table
         doc.add_heading('Client Details', level=1)
         table = doc.add_table(rows=4, cols=2)
         table.style = 'Light Grid Accent 1'
@@ -511,12 +511,12 @@ class AssetAllocationReportUtils:
         table.cell(2, 0).text = "Risk Tier"
         table.cell(2, 1).text = allocation.assigned_risk_tier
         table.cell(3, 0).text = "Date"
-        table.cell(3, 1).text = allocation.created_at.strftime('%Y-%m-%d')
+        table.cell(3, 1).text = allocation.created_at.strftime('%d %B, %Y')
         
         doc.add_paragraph()
         
-        # Allocation Table
-        doc.add_heading('Portfolio Allocation', level=1)
+        # 2. Main Allocation Table & Chart
+        doc.add_heading('MAIN ASSET CLASS ALLOCATION', level=1)
         atable = doc.add_table(rows=4, cols=2)
         atable.style = 'Medium List 1 Accent 1'
         atable.cell(0, 0).text = "Asset Class"
@@ -531,19 +531,114 @@ class AssetAllocationReportUtils:
             atable.cell(i, 0).text = label
             atable.cell(i, 1).text = val
 
+        # Chart for Main Allocation
+        if allocation.total_allocation > 0:
+            labels, sizes, colors_list = [], [], []
+            if allocation.equities_percentage > 0: 
+                labels.append('Equities'); sizes.append(allocation.equities_percentage); colors_list.append('#FF6B6B')
+            if allocation.debt_securities_percentage > 0: 
+                labels.append('Debt'); sizes.append(allocation.debt_securities_percentage); colors_list.append('#4ECDC4')
+            if allocation.commodities_percentage > 0: 
+                labels.append('Commodities'); sizes.append(allocation.commodities_percentage); colors_list.append('#45B7D1')
+            
+            if sizes:
+                chart_bytes = AssetAllocationReportUtils.create_pie_chart(labels, sizes, "Main Asset Class Allocation", colors_list)
+                doc.add_picture(io.BytesIO(chart_bytes), width=Inches(4.5))
+                doc.add_paragraph().alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        # 3. Equities Breakdown
+        if allocation.equities_percentage > 0:
+            doc.add_heading('EQUITIES SUB-ASSET ALLOCATION', level=2)
+            eq_table = doc.add_table(rows=5, cols=4)
+            eq_table.style = 'Table Grid'
+            hdr = eq_table.rows[0].cells
+            hdr[0].text, hdr[1].text, hdr[2].text, hdr[3].text = "Sub-asset", "Allocation %", "Within Equities", "Within Total Portfolio"
+            
+            eq_data = [
+                ("Stocks", f"{allocation.stocks_percentage:.1f}%", f"{allocation.stocks_percentage:.1f}%", f"{(allocation.stocks_percentage * allocation.equities_percentage / 100):.1f}%"),
+                ("Mutual Funds", f"{allocation.mutual_fund_equity_percentage:.1f}%", f"{allocation.mutual_fund_equity_percentage:.1f}%", f"{(allocation.mutual_fund_equity_percentage * allocation.equities_percentage / 100):.1f}%"),
+                ("ULIP", f"{allocation.ulip_equity_percentage:.1f}%", f"{allocation.ulip_equity_percentage:.1f}%", f"{(allocation.ulip_equity_percentage * allocation.equities_percentage / 100):.1f}%"),
+                ("TOTAL", "100.0%", "100.0%", f"{allocation.equities_percentage:.1f}%")
+            ]
+            for i, (s, a, we, wp) in enumerate(eq_data, 1):
+                row = eq_table.rows[i].cells
+                row[0].text, row[1].text, row[2].text, row[3].text = s, a, we, wp
+
+            # Chart for Equities
+            eq_l, eq_s = [], []
+            if allocation.stocks_percentage > 0: eq_l.append('Stocks'); eq_s.append(allocation.stocks_percentage)
+            if allocation.mutual_fund_equity_percentage > 0: eq_l.append('Mutual Funds'); eq_s.append(allocation.mutual_fund_equity_percentage)
+            if allocation.ulip_equity_percentage > 0: eq_l.append('ULIP'); eq_s.append(allocation.ulip_equity_percentage)
+            if eq_s:
+                chart_bytes = AssetAllocationReportUtils.create_pie_chart(eq_l, eq_s, "Equities Breakdown", ['#ef4444', '#f06565', '#f38787'])
+                doc.add_picture(io.BytesIO(chart_bytes), width=Inches(3.5))
+
+        # 4. Debt Breakdown
+        if allocation.debt_securities_percentage > 0:
+            doc.add_heading('DEBT SECURITIES SUB-ASSET ALLOCATION', level=2)
+            db_table = doc.add_table(rows=5, cols=4)
+            db_table.style = 'Table Grid'
+            hdr = db_table.rows[0].cells
+            hdr[0].text, hdr[1].text, hdr[2].text, hdr[3].text = "Sub-asset", "Allocation %", "Within Debt", "Within Total Portfolio"
+            
+            db_data = [
+                ("FD/Bonds", f"{allocation.fixed_deposits_bonds_percentage:.1f}%", f"{allocation.fixed_deposits_bonds_percentage:.1f}%", f"{(allocation.fixed_deposits_bonds_percentage * allocation.debt_securities_percentage / 100):.1f}%"),
+                ("Mutual Funds", f"{allocation.mutual_fund_debt_percentage:.1f}%", f"{allocation.mutual_fund_debt_percentage:.1f}%", f"{(allocation.mutual_fund_debt_percentage * allocation.debt_securities_percentage / 100):.1f}%"),
+                ("ULIP", f"{allocation.ulip_debt_percentage:.1f}%", f"{allocation.ulip_debt_percentage:.1f}%", f"{(allocation.ulip_debt_percentage * allocation.debt_securities_percentage / 100):.1f}%"),
+                ("TOTAL", "100.0%", "100.0%", f"{allocation.debt_securities_percentage:.1f}%")
+            ]
+            for i, (s, a, wd, wp) in enumerate(db_data, 1):
+                row = db_table.rows[i].cells
+                row[0].text, row[1].text, row[2].text, row[3].text = s, a, wd, wp
+
+            # Chart for Debt
+            db_l, db_s = [], []
+            if allocation.fixed_deposits_bonds_percentage > 0: db_l.append('FD/Bonds'); db_s.append(allocation.fixed_deposits_bonds_percentage)
+            if allocation.mutual_fund_debt_percentage > 0: db_l.append('Mutual Funds'); db_s.append(allocation.mutual_fund_debt_percentage)
+            if allocation.ulip_debt_percentage > 0: db_l.append('ULIP'); db_s.append(allocation.ulip_debt_percentage)
+            if db_s:
+                chart_bytes = AssetAllocationReportUtils.create_pie_chart(db_l, db_s, "Debt Breakdown", ['#3b82f6', '#619bf8', '#88b4fa'])
+                doc.add_picture(io.BytesIO(chart_bytes), width=Inches(3.5))
+
+        # 5. Commodities Breakdown
+        if allocation.commodities_percentage > 0:
+            doc.add_heading('COMMODITIES SUB-ASSET ALLOCATION', level=2)
+            cm_table = doc.add_table(rows=4, cols=4)
+            cm_table.style = 'Table Grid'
+            hdr = cm_table.rows[0].cells
+            hdr[0].text, hdr[1].text, hdr[2].text, hdr[3].text = "Sub-asset", "Allocation %", "Within Commodities", "Within Total Portfolio"
+            
+            cm_data = [
+                ("Gold ETF", f"{allocation.gold_etf_percentage:.1f}%", f"{allocation.gold_etf_percentage:.1f}%", f"{(allocation.gold_etf_percentage * allocation.commodities_percentage / 100):.1f}%"),
+                ("Silver ETF", f"{allocation.silver_etf_percentage:.1f}%", f"{allocation.silver_etf_percentage:.1f}%", f"{(allocation.silver_etf_percentage * allocation.commodities_percentage / 100):.1f}%"),
+                ("TOTAL", "100.0%", "100.0%", f"{allocation.commodities_percentage:.1f}%")
+            ]
+            for i, (s, a, wc, wp) in enumerate(cm_data, 1):
+                row = cm_table.rows[i].cells
+                row[0].text, row[1].text, row[2].text, row[3].text = s, a, wc, wp
+
+            # Chart for Commodities
+            cm_l, cm_s = [], []
+            if allocation.gold_etf_percentage > 0: cm_l.append('Gold'); cm_s.append(allocation.gold_etf_percentage)
+            if allocation.silver_etf_percentage > 0: cm_l.append('Silver'); cm_s.append(allocation.silver_etf_percentage)
+            if cm_s:
+                chart_bytes = AssetAllocationReportUtils.create_pie_chart(cm_l, cm_s, "Commodities Breakdown", ['#f59e0b', '#f7b13c', '#fac56d'])
+                doc.add_picture(io.BytesIO(chart_bytes), width=Inches(3.5))
+
+        # 6. Conclusion & Notes
         if allocation.system_conclusion:
-            doc.add_heading('Conclusion', level=1)
+            doc.add_heading('CONCLUSION', level=1)
             doc.add_paragraph(allocation.system_conclusion)
 
         if allocation.discussion_notes:
-            doc.add_heading('Discussion Notes', level=1)
+            doc.add_heading('DISCUSSION NOTES', level=1)
             doc.add_paragraph(allocation.discussion_notes)
 
-        doc.add_heading('Disclaimer', level=2)
+        doc.add_heading('DISCLAIMER', level=2)
         p = doc.add_paragraph(allocation.disclaimer_text)
         p.italic = True
 
-        # Signatures for Word
+        # 7. Signatures for Word
         doc.add_paragraph('\n\n')
         stable = doc.add_table(rows=2, cols=2)
         stable.cell(0, 0).text = "__________________________\n\nClient Signature\n\nDate: ________________"
@@ -555,3 +650,4 @@ class AssetAllocationReportUtils:
         doc.save(buffer)
         buffer.seek(0)
         return buffer
+
