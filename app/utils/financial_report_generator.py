@@ -678,7 +678,7 @@ class FinancialReportGenerator:
         return buffer
 
     @staticmethod
-    def generate_blank_form(ia_logo_path: Optional[str] = None) -> io.BytesIO:
+    def generate_blank_form(ia_logo_path: Optional[str] = None, ia_name: Optional[str] = None) -> io.BytesIO:
         """Generate a professionally styled, grid-based blank Financial Analysis Form."""
         if not PDF_AVAILABLE:
             raise ImportError("reportlab is not installed.")
@@ -727,9 +727,9 @@ class FinancialReportGenerator:
 
         # Advisor Info Grid
         info_data = [
-            [Paragraph("Advisor Name", label_style), "____________________________", Paragraph("Advisor ID", label_style), "________________"],
-            [Paragraph("Client Name", label_style), "____________________________", Paragraph("Date", label_style), datetime.now().strftime('%d/%m/%Y')],
-            [Paragraph("Client Code", label_style), "____________________________", "", ""]
+            [Paragraph("Advisor Name", label_style), "", Paragraph("Advisor ID", label_style), ""],
+            [Paragraph("Client Name", label_style), "", Paragraph("Date", label_style), datetime.now().strftime('%d/%m/%Y')],
+            [Paragraph("Client Code", label_style), "", "", ""]
         ]
         t_info = Table(info_data, colWidths=[110, 230, 90, 105], rowHeights=25)
         t_info.setStyle(TableStyle([
@@ -743,12 +743,12 @@ class FinancialReportGenerator:
         # 1. PERSONAL INFORMATION
         add_section_header("1. Personal & Family Profile")
         personal_data = [
-            [Paragraph("Full Name (Client)", label_style), "________________________________________", Paragraph("DOB", label_style), "___________"],
-            [Paragraph("Occupation", label_style), "________________________________________", Paragraph("PAN", label_style), "___________"],
-            [Paragraph("Email ID", label_style), "________________________________________", Paragraph("Contact", label_style), "___________"],
-            [Paragraph("Annual Income", label_style), "Rs. ____________________", "", ""],
-            [Paragraph("Full Name (Spouse)", label_style), "________________________________________", Paragraph("DOB", label_style), "___________"],
-            [Paragraph("Occupation", label_style), "________________________________________", "", ""]
+            [Paragraph("Full Name (Client)", label_style), "", Paragraph("DOB", label_style), ""],
+            [Paragraph("Occupation", label_style), "", Paragraph("PAN", label_style), ""],
+            [Paragraph("Email ID", label_style), "", Paragraph("Contact", label_style), ""],
+            [Paragraph("Annual Income", label_style), "Rs.", "", ""],
+            [Paragraph("Full Name (Spouse)", label_style), "", Paragraph("DOB", label_style), ""],
+            [Paragraph("Occupation", label_style), "", "", ""]
         ]
         t_personal = Table(personal_data, colWidths=[120, 255, 50, 110], rowHeights=28)
         t_personal.setStyle(TableStyle([
@@ -765,9 +765,9 @@ class FinancialReportGenerator:
         add_section_header("2. Children Details")
         child_data = [
             [Paragraph("No.", label_style), Paragraph("Child Full Name", label_style), Paragraph("Date of Birth", label_style), Paragraph("Occupation / Status", label_style)],
-            ["1", "________________________________________", "________________", "________________________"],
-            ["2", "________________________________________", "________________", "________________________"],
-            ["3", "________________________________________", "________________", "________________________"],
+            ["1", "", "", ""],
+            ["2", "", "", ""],
+            ["3", "", "", ""],
         ]
         t_child = Table(child_data, colWidths=[40, 240, 100, 155], rowHeights=30)
         t_child.setStyle(TableStyle([
@@ -795,7 +795,7 @@ class FinancialReportGenerator:
             row = []
             for item in pair:
                 row.append(Paragraph(item, label_style))
-                row.append("Rs. __________")
+                row.append("Rs. ")
             exp_rows.append(row)
         
         t_exp = Table(exp_rows, colWidths=[160, 107.5, 160, 107.5], rowHeights=30)
@@ -811,12 +811,12 @@ class FinancialReportGenerator:
         add_section_header("4. Assets & 5. Liabilities (Rs.)")
         al_data = [
             [Paragraph("<b>ASSET DESCRIPTION</b>", label_style), Paragraph("<b>VALUE (Rs.)</b>", label_style), Paragraph("<b>LIABILITY DESCRIPTION</b>", label_style), Paragraph("<b>OUTSTANDING (Rs.)</b>", label_style)],
-            ["Real Estate (Res)", "___________", "Home / Housing Loan", "___________"],
-            ["Real Estate (Other)", "___________", "Personal / Top-up Loan", "___________"],
-            ["Mutual Funds / Equity", "___________", "Credit Card Dues", "___________"],
-            ["Fixed Dep / Bank Bal", "___________", "Vehicle Loan", "___________"],
-            ["Retirement (PF/PPF)", "___________", "Others LIAB", "___________"],
-            ["Others ASSETS", "___________", "", ""],
+            ["Real Estate (Res)", "", "Home / Housing Loan", ""],
+            ["Real Estate (Other)", "", "Personal / Top-up Loan", ""],
+            ["Mutual Funds / Equity", "", "Credit Card Dues", ""],
+            ["Fixed Dep / Bank Bal", "", "Vehicle Loan", ""],
+            ["Retirement (PF/PPF)", "", "Others LIAB", ""],
+            ["Others ASSETS", "", "", ""],
         ]
         t_al = Table(al_data, colWidths=[175, 92.5, 175, 92.5], rowHeights=32)
         t_al.setStyle(TableStyle([
@@ -832,10 +832,10 @@ class FinancialReportGenerator:
         add_section_header("6. Insurance Information")
         ins_data = [
             [Paragraph("Insurance Type", label_style), Paragraph("Sum Assured / Cover", label_style), Paragraph("Annual Premium Paid", label_style)],
-            ["Life Insurance (Term/Endow)", "Rs. ________________", "Rs. ________________"],
-            ["Health Insurance (Mediclaim)", "Rs. ________________", "Rs. ________________"],
-            ["Critical Illness / PA", "Rs. ________________", "Rs. ________________"],
-            ["Motor / Asset Insurance", "Rs. ________________", "Rs. ________________"],
+            ["Life Insurance (Term/Endow)", "Rs. ", "Rs. "],
+            ["Health Insurance (Mediclaim)", "Rs. ", "Rs. "],
+            ["Critical Illness / PA", "Rs. ", "Rs. "],
+            ["Motor / Asset Insurance", "Rs. ", "Rs. "],
         ]
         t_ins = Table(ins_data, colWidths=[185, 175, 175], rowHeights=32)
         t_ins.setStyle(TableStyle([
@@ -847,7 +847,7 @@ class FinancialReportGenerator:
         elements.append(t_ins)
         
         elements.append(Spacer(1, 5))
-        mb_data = [[Paragraph("<b>Medical Bonus Years:</b> ____", label_style), Paragraph("<b>Avg. Bonus Percentage (%):</b> ____", label_style)]]
+        mb_data = [[Paragraph("<b>Medical Bonus Years:</b> ", label_style), Paragraph("<b>Avg. Bonus Percentage (%):</b> ", label_style)]]
         t_mb = Table(mb_data, colWidths=[267.5, 267.5], rowHeights=28)
         t_mb.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey), ('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('PADDING', (0,0), (-1,-1), 6)]))
         elements.append(t_mb)
@@ -856,11 +856,11 @@ class FinancialReportGenerator:
         # 7. ASSUMPTIONS & GOALS
         add_section_header("7. Financial Assumptions & Major Goals")
         ass_data = [
-            [Paragraph("Retirement Age", label_style), "_________", Paragraph("Inflation Rate (%)", label_style), "_________"],
-            [Paragraph("Life Exp (Client)", label_style), "_________", Paragraph("Life Exp (Spouse)", label_style), "_________"],
-            [Paragraph("Med. Inflation (%)", label_style), "_________", Paragraph("Pre-Ret Return (%)", label_style), "_________"],
-            [Paragraph("Income Increment (%)", label_style), "_________", Paragraph("Post-Ret Return (%)", label_style), "_________"],
-            [Paragraph("SOL for HLV (%)", label_style), "_________", Paragraph("SOL for Retire (%)", label_style), "_________"],
+            [Paragraph("Retirement Age", label_style), "", Paragraph("Inflation Rate (%)", label_style), ""],
+            [Paragraph("Life Exp (Client)", label_style), "", Paragraph("Life Exp (Spouse)", label_style), ""],
+            [Paragraph("Med. Inflation (%)", label_style), "", Paragraph("Pre-Ret Return (%)", label_style), ""],
+            [Paragraph("Income Increment (%)", label_style), "", Paragraph("Post-Ret Return (%)", label_style), ""],
+            [Paragraph("SOL for HLV (%)", label_style), "", Paragraph("SOL for Retire (%)", label_style), ""],
         ]
         t_ass = Table(ass_data, colWidths=[160, 107.5, 160, 107.5], rowHeights=28)
         t_ass.setStyle(TableStyle([
@@ -873,9 +873,9 @@ class FinancialReportGenerator:
 
         goal_data = [
             ["", Paragraph("<b>Education Goal (Children)</b>", label_style), Paragraph("<b>Marriage Goal (Children)</b>", label_style)],
-            [Paragraph("Corpus Needed", label_style), "Rs. ____________________", "Rs. ____________________"],
-            [Paragraph("Years to Goal", label_style), "________________________", "________________________"],
-            [Paragraph("Allocation (%)", label_style), "________________________", "________________________"],
+            [Paragraph("Corpus Needed", label_style), "Rs. ", "Rs. "],
+            [Paragraph("Years to Goal", label_style), "", ""],
+            [Paragraph("Allocation (%)", label_style), "", ""],
         ]
         t_goals = Table(goal_data, colWidths=[145, 195, 195], rowHeights=[25, 32, 32, 32])
         t_goals.setStyle(TableStyle([
@@ -904,6 +904,9 @@ class FinancialReportGenerator:
         t_sig = Table(sig_data, colWidths=[2.8*inch, 2.8*inch], rowHeights=[30, 20, 30, 30])
         t_sig.setStyle(TableStyle([('ALIGN', (0,0), (-1,-1), 'CENTER'), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
         elements.append(t_sig)
+
+        def canvas_factory(*args, **kwargs):
+            return NumberedCanvas(*args, entity_name=ia_name, **kwargs)
 
         doc.build(elements, canvasmaker=canvas_factory)
         buffer.seek(0)

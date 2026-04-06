@@ -327,7 +327,8 @@ async def get_analysis_details_bridge(
 
     # 2. Retirement
     e_adjusted = total_expenses * (assumptions.get("sol_ret", 80) / 100)
-    years_to_retirement = assumptions.get("retirement_age", 60) - FinancialCalculator.calculate_current_age(profile.get("dob"))
+    years_to_retirement = (assumptions.get("retirement_age", 60) - 
+                         FinancialCalculator.calculate_current_age(profile.get("dob")))
     
     details.append({
         'section': 'Retirement Planning',
@@ -337,12 +338,121 @@ async def get_analysis_details_bridge(
                 'description': 'Inflation-Adjusted Monthly Expenses at Retirement',
                 'formula': 'E_retirement = E_today × (1 + i)^n',
                 'calculation': f'Today: Rs {int(e_adjusted/12):,} | Inflation: {assumptions.get("inflation", 6)}% | Years: {years_to_retirement}',
-                'result': f'Monthly at Retirement: Rs {int(calculations.get("retirement_corpus_at_retirement", 0) / 120):,}' # Approximation or use stored result
+                'result': f'Monthly at Retirement: Rs {int(calculations.get("retirement_corpus_at_retirement", 0) / 120):,}' # Approx monthly draw
             },
             {
                 'step': 2,
                 'description': 'Total Retirement Corpus Required',
                 'result': f'Rs {calculations.get("retirement_corpus_at_retirement", 0):,}'
+            }
+        ]
+    })
+
+    # 3. Medical Corpus
+    medical_data = result.get("medical_data", {})
+    details.append({
+        'section': 'Medical Corpus (Post-Retirement)',
+        'steps': [
+            {
+                'step': 1,
+                'description': 'Estimated Medical Corpus at Retirement',
+                'formula': 'Medical_FV = Current_Cover × (1 + i_med)^n',
+                'calculation': f'Current Cover: Rs {medical_data.get("current_medical_cover", 0):,} | Inflation: {assumptions.get("medical_inflation", 10)}% | Years: {years_to_retirement}',
+                'result': f'Rs {medical_data.get("medical_corpus_at_retirement", 0):,}'
+            },
+            {
+                'step': 2,
+                'description': 'Shortfall to be Funded',
+                'formula': 'Shortfall = Medical_FV - (Current_Cover + Accumulated_Bonus)',
+                'result': f'Rs {medical_data.get("balance_needed_at_retirement", 0):,}'
+            }
+        ]
+    })
+
+    # 4. Child Education Goal
+    details.append({
+        'section': 'Child Education Goal',
+        'steps': [
+            {
+                'step': 1,
+                'description': 'Inflation-Adjusted Cost of Education',
+                'formula': 'FV = Current_Cost × (1 + i)^n',
+                'calculation': f'Today: Rs {result.get("education_corpus_today", 0):,} | Inflation: {assumptions.get("inflation", 6)}% | Years: {assumptions.get("education_years", 0)}',
+                'result': f'Rs {result.get("education_future_needed", 0):,}'
+            },
+            {
+                'step': 2,
+                'description': 'Net Corpus Needed (After existing investments)',
+                'result': f'Rs {result.get("education_net_corpus", 0):,}'
+            }
+        ]
+    })
+
+    # 5. Child Marriage Goal
+    details.append({
+        'section': 'Child Marriage Goal',
+        'steps': [
+            {
+                'step': 1,
+                'description': 'Inflation-Adjusted Cost of Marriage',
+                'formula': 'FV = Current_Cost × (1 + i)^n',
+                'calculation': f'Today: Rs {result.get("marriage_corpus_today", 0):,} | Inflation: {assumptions.get("inflation", 6)}% | Years: {assumptions.get("marriage_years", 0)}',
+                'result': f'Rs {result.get("marriage_future_needed", 0):,}'
+            },
+            {
+                'step': 2,
+                'description': 'Net Corpus Needed (After existing investments)',
+                'result': f'Rs {result.get("marriage_net_corpus", 0):,}'
+            }
+        ]
+    })
+
+    # 6. Emergency Fund
+    details.append({
+        'section': 'Emergency Fund',
+        'steps': [
+            {
+                'step': 1,
+                'description': 'Total Fund Required (6 Months Expenses)',
+                'formula': 'Fund = Monthly_Expense × 6',
+                'calculation': f'Monthly: Rs {int(total_expenses/12):,} × 6',
+                'result': f'Rs {result.get("emergency_fund_needed", 0):,}'
+            },
+            {
+                'step': 2,
+                'description': 'Current Shortfall',
+                'result': f'Rs {result.get("emergency_fund_shortfall", 0):,}'
+            }
+        ]
+    })
+
+    # 7. Financial Health & Ratios
+    details.append({
+        'section': 'Financial Health & Ratios',
+        'steps': [
+            {
+                'step': 1,
+                'description': 'Savings Rate',
+                'formula': 'Rate = (Income - Expense) / Income',
+                'result': f'{result.get("savings_rate", 0)}%'
+            },
+            {
+                'step': 2,
+                'description': 'Overall Financial Health Score',
+                'result': f'{result.get("financial_health_score", 0)}/100'
+            }
+        ]
+    })
+
+    # 8. Total Monthly Investment (Recommended Plan)
+    details.append({
+        'section': 'Recommended Monthly SIP Summary',
+        'steps': [
+            {
+                'step': 1,
+                'description': 'Aggregate Target Monthly Investment',
+                'formula': 'Total_SIP = SIP_Retire + SIP_Medical + SIP_Edu + SIP_Marriage + SIP_Insurance + SIP_Emergency',
+                'result': f'Rs {result.get("total_monthly_investment_income", 0):,}'
             }
         ]
     })
@@ -458,16 +568,18 @@ async def download_blank_form_bridge(
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
     """Generate and download a blank Financial Analysis Form."""
-    # Fetch IA logo
+    # Fetch IA metadata
     ia_logo_path = None
+    ia_name = None
     try:
         ia_master = await bridge.get("/ia-master")
         if ia_master:
             ia_logo_path = ia_master.get("ia_logo_path")
+            ia_name = ia_master.get("ia_name") or ia_master.get("entity_name")
     except:
         pass
 
-    pdf_buffer = FinancialReportGenerator.generate_blank_form(ia_logo_path=ia_logo_path)
+    pdf_buffer = FinancialReportGenerator.generate_blank_form(ia_logo_path=ia_logo_path, ia_name=ia_name)
     
     return StreamingResponse(
         pdf_buffer,
