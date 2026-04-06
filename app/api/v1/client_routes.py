@@ -6,6 +6,7 @@ No direct database connections are made from this backend.
 """
 from typing import List
 import uuid
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
@@ -189,6 +190,60 @@ async def get_client_count_bridge(
 ):
     """Get client count (billing metric) from the Bridge."""
     return await bridge.get("/billing/client-count")
+
+
+@router.get("/report")
+async def download_client_master_report(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """
+    Generate and download the Client Code Master Report for all clients via the Bridge.
+    Data is enriched with assigned employee names before PDF generation.
+    """
+    try:
+        # 1. Fetch data from Bridge in parallel
+        import asyncio
+        clients_task = bridge.get("/clients", params={"limit": 1000})
+        employees_task = bridge.get("/employees")
+        ia_task = bridge.get("/ia-master")
+        
+        clients_result, employees_list, ia_data = await asyncio.gather(clients_task, employees_task, ia_task)
+        clients = clients_result.get("clients", [])
+        
+        if not clients:
+            raise HTTPException(status_code=404, detail="No clients found to generate report")
+
+        # 2. Build Employee Name Lookup Map
+        # Bridge returns a list of dicts for employees.
+        # We check for common name fields: full_name, name_of_employee, name
+        employee_map = {}
+        for emp in employees_list:
+            # Handle both UUID and String IDs from Bridge response
+            emp_id = str(emp.get("id") or emp.get("_id") or "")
+            emp_name = emp.get("full_name") or emp.get("name_of_employee") or emp.get("name") or "Staff Member"
+            if emp_id:
+                employee_map[emp_id] = emp_name
+
+        # 3. Enrich clients with employee_name for PDF generation
+        for client in clients:
+            assigned_id = str(client.get("assigned_employee_id") or "")
+            client["employee_name"] = employee_map.get(assigned_id, "Unassigned") if assigned_id else "Unassigned"
+
+        # 4. Generate PDF
+        pdf_bytes = ClientPDFGenerator.generate_client_master_report(clients, ia_data=ia_data)
+        
+        date_str = datetime.now().strftime('%Y-%m-%d')
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Client_Master_Report_{date_str}.pdf"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate master report: {str(e)}")
 
 
 

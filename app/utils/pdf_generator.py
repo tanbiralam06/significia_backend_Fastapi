@@ -271,7 +271,7 @@ class ClientPDFGenerator:
         return bytes(pdf.output())
 
     @staticmethod
-    def generate_client_master_report(clients: List[dict]) -> bytes:
+    def generate_client_master_report(clients: List[dict], ia_data: Optional[dict] = None) -> bytes:
         pdf = FPDF(orientation="L") 
         pdf.set_auto_page_break(auto=True, margin=10)
         pdf.add_page()
@@ -286,18 +286,30 @@ class ClientPDFGenerator:
         pdf.set_text_color(*text_black)
         current_date_str = datetime.now().strftime('%d-%m-%Y')
         pdf.cell(0, 10, f"ACTIVE CLIENT CODE MASTER UPDATE STATUS AS ON {current_date_str}", ln=True, align="C")
-        pdf.ln(10)
+        
+        if ia_data:
+            entity_name = ia_data.get('name_of_entity') or ia_data.get('name_of_ia', 'N/A')
+            ia_reg = ia_data.get('ia_registration_number', 'N/A')
+            pdf.set_font("helvetica", "B", 11)
+            pdf.set_text_color(*text_muted)
+            pdf.cell(0, 6, f"ENTITY: {entity_name.upper()}", ln=True, align="C")
+            pdf.set_font("helvetica", "B", 10)
+            pdf.cell(0, 6, f"IA REGISTRATION NO: {ia_reg}", ln=True, align="C")
+            pdf.ln(2)
+
+        pdf.ln(5)
         
         headers = [
-            ("Client Code", 25),
-            ("Client Name", 45),
-            ("PAN Number", 30),
-            ("DOB", 25),
-            ("Reg No", 35),
-            ("Advisor Name", 40),
+            ("SL No", 12),
+            ("Client Code", 22),
+            ("Client Name", 38),
+            ("PAN Number", 25),
+            ("DOB", 20),
+            ("Reg No", 30),
+            ("Advisor Name", 33),
             ("Relation", 15),
-            ("Assigned Employee", 40),
-            ("Created At", 25)
+            ("Assigned Employee", 35),
+            ("Created At", 30)
         ]
         
         pdf.set_font("helvetica", "B", 9)
@@ -313,7 +325,7 @@ class ClientPDFGenerator:
         pdf.set_text_color(*text_black)
         
         alternate = False
-        for client in clients:
+        for idx, client in enumerate(clients, 1):
             if alternate:
                 pdf.set_fill_color(*accent_grey)
             else:
@@ -321,19 +333,28 @@ class ClientPDFGenerator:
             
             def fmt_date(d):
                 if isinstance(d, (datetime, date)):
-                    return d.strftime('%d-%m-%Y')
+                    return d.strftime('%d-%m-%Y %H:%M')
+                if isinstance(d, str) and 'T' in d:
+                    try:
+                        # Attempt to parse ISO format and extracted date + HH:MM
+                        dt_obj = datetime.fromisoformat(d.replace('Z', '+00:00'))
+                        return dt_obj.strftime('%d-%m-%Y %H:%M')
+                    except:
+                        # Fallback parsing YYYY-MM-DD
+                        return d[:16].replace('T', ' ') # Simple fallback: YYYY-MM-DD HH:MM
                 return str(d) if d else ""
 
             row_data = [
-                (client.get("client_code", ""), 25),
-                (client.get("client_name", "")[:25], 45),
-                (client.get("pan_number", "").upper(), 30),
-                (fmt_date(client.get("date_of_birth")), 25),
-                (client.get("advisor_registration_number", ""), 35),
-                (client.get("advisor_name", "")[:20], 40),
+                (idx, 12),
+                (client.get("client_code", ""), 22),
+                (client.get("client_name", "")[:20], 38),
+                (client.get("pan_number", "").upper(), 25),
+                (fmt_date(client.get("date_of_birth")), 20),
+                (client.get("advisor_registration_number", ""), 30),
+                (client.get("advisor_name", "")[:20], 33),
                 (client.get("relation", "self"), 15),
-                (client.get("employee_name", "Unassigned")[:20], 40),
-                (fmt_date(client.get("created_at")), 25)
+                (client.get("employee_name", "Unassigned")[:20], 35),
+                (fmt_date(client.get("created_at")), 30)
             ]
             
             for val, width in row_data:
