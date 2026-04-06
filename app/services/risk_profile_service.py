@@ -89,6 +89,33 @@ class RiskProfileService:
         return "Unknown", "No recommendation available"
 
     @staticmethod
+    def calculate_custom_scores(responses: Dict[str, Any], questionnaire: Dict[str, Any]) -> Tuple[float, str]:
+        """
+        Calculates score for custom questionnaire.
+        responses: { q_id: { option_id: str, score: float } }
+        questionnaire: { questions: [...], categories: [...] }
+        """
+        total_score = 0.0
+        
+        # 1. Total the scores from responses
+        for q_id, resp in responses.items():
+            if isinstance(resp, dict):
+                total_score += float(resp.get('score', 0))
+        
+        # 2. Determine category from questionnaire definition
+        categories = questionnaire.get('categories') or []
+        category_name = "Unknown"
+        
+        for cat in categories:
+            min_s = float(cat.get('min_score', 0))
+            max_s = float(cat.get('max_score', 0))
+            if min_s <= total_score <= max_s:
+                category_name = cat.get('name', 'Unknown')
+                break
+        
+        return total_score, category_name
+
+    @staticmethod
     def save_assessment(
         db: Session, 
         payload: RiskAssessmentCreate,

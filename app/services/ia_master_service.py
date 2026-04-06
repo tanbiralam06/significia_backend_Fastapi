@@ -11,6 +11,7 @@ from app.utils.file_utils import resolve_logo_to_local_path
 from app.utils.pdf_generator import IAPDFGenerator
 from app.schemas.ia_master import IAMasterCreate, EmployeeCreate
 from app.services.bridge_client import BridgeClient
+from app.utils.encryption import decrypt_string
 
 class IAMasterService:
     def __init__(self):
@@ -168,6 +169,9 @@ class IAMasterService:
             raise ValueError("IA record not found")
         employees = self.ia_repo.get_employees_by_master_id(db, ia_id)
         ia_dict = {c.name: getattr(db_ia, c.name) for c in db_ia.__table__.columns}
+        ia_dict["name_of_ia"] = decrypt_string(ia_dict.get("name_of_ia"))
+        ia_dict["name_of_entity"] = decrypt_string(ia_dict.get("name_of_entity"))
+        
         emp_list = [{c.name: getattr(emp, c.name) for c in emp.__table__.columns} for emp in employees]
         logo_path = await resolve_logo_to_local_path(db_ia.ia_logo_path, db)
         pdf_bytes = IAPDFGenerator.generate_ia_report(ia_dict, emp_list, logo_path=logo_path)
@@ -184,6 +188,9 @@ class IAMasterService:
         ia_data = await bridge.get("/ia-master")
         if not ia_data:
             raise ValueError("IA Master data not found on Bridge")
+            
+        ia_data["name_of_ia"] = decrypt_string(ia_data.get("name_of_ia"))
+        ia_data["name_of_entity"] = decrypt_string(ia_data.get("name_of_entity"))
 
         employees = ia_data.get("employees", [])
         

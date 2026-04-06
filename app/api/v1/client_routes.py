@@ -16,6 +16,7 @@ from app.models.tenant import Tenant
 from app.schemas.client_schema import ClientCreate, ClientUpdate, ClientResponse, ClientDocumentResponse
 from app.utils.reports.client_blank_form import generate_client_blank_form
 from app.utils.pdf_generator import ClientPDFGenerator
+from app.utils.encryption import decrypt_string
 
 # Legacy imports removed as Bridge Architecture is fully enforced
 
@@ -144,7 +145,7 @@ async def download_blank_registration_form(
     try:
         # 1. Fetch IA Master info from Bridge
         ia_data = await bridge.get("/ia-master")
-        ia_name = ia_data.get("name_of_ia", "____________________________")
+        ia_name = decrypt_string(ia_data.get("name_of_ia")) or "____________________________"
         ia_reg_no = ia_data.get("ia_registration_number", "________________")
         
         # 2. Resolve Logo
@@ -204,6 +205,10 @@ async def download_client_master_report(
         
         clients_result, employees_list, ia_data = await asyncio.gather(clients_task, employees_task, ia_task)
         clients = clients_result.get("clients", [])
+
+        if ia_data:
+            ia_data["name_of_ia"] = decrypt_string(ia_data.get("name_of_ia"))
+            ia_data["name_of_entity"] = decrypt_string(ia_data.get("name_of_entity"))
         
         if not clients:
             raise HTTPException(status_code=404, detail="No clients found to generate report")
@@ -254,6 +259,10 @@ async def download_client_individual_report(
         ia_task = bridge.get("/ia-master")
         
         client, ia_data = await asyncio.gather(client_task, ia_task)
+        
+        if ia_data:
+            ia_data["name_of_ia"] = decrypt_string(ia_data.get("name_of_ia"))
+            ia_data["name_of_entity"] = decrypt_string(ia_data.get("name_of_entity"))
         
         if not client:
             raise HTTPException(status_code=404, detail="Client not found")

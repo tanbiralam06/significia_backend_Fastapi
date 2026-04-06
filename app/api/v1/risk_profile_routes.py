@@ -158,7 +158,33 @@ async def save_custom_risk_assessment_bridge(
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
     """Save a custom risk assessment via the Bridge."""
-    return await bridge.post("/custom-risk-assessments", payload.model_dump())
+    # 1. Resolve Client
+    client = await bridge.get(f"/clients/code/{payload.client_code}")
+    client_id = client.get("id")
+    if not client_id:
+        raise HTTPException(status_code=404, detail=f"Client with code {payload.client_code} not found in Bridge")
+
+    # 2. Fetch Questionnaire for scoring rules
+    questionnaire = await bridge.get(f"/risk-questionnaires/{payload.questionnaire_id}")
+    if not questionnaire:
+        raise HTTPException(status_code=404, detail="Questionnaire not found in Bridge")
+
+    # 3. Calculate scores (Business Logic)
+    from app.services.risk_profile_service import RiskProfileService
+    total_score, category_name = RiskProfileService.calculate_custom_scores(payload.responses, questionnaire)
+
+    # 4. Prepare Bridge payload
+    data = {
+        "client_id": client_id,
+        "questionnaire_id": str(payload.questionnaire_id),
+        "portfolio_name": questionnaire.get("portfolio_name"),
+        "category_name": category_name,
+        "total_score": total_score,
+        "responses": payload.responses,
+        "discussion_notes": payload.discussion_notes
+    }
+
+    return await bridge.post("/custom-risk-assessments", data)
 
 
 @router.get("/bridge/custom-assessments")
@@ -184,8 +210,9 @@ async def download_blank_risk_form_bridge(
 ):
     """Download a blank risk profile form via the Bridge."""
     try:
-        # 1. Fetch IA Master info from Bridge
+        # 1. Fetch IA Master and Questionnaire info from Bridge
         ia_data = await bridge.get("/ia-master")
+        q_data = await bridge.get(f"/risk-questionnaires/{q_id}")
         
         # 2. Resolve Logo from Bridge storage
         logo_path = None
@@ -206,7 +233,8 @@ async def download_blank_risk_form_bridge(
             db=db,
             questionnaire_id=q_id,
             ia_logo_override=logo_path,
-            ia_data=ia_data
+            ia_data=ia_data,
+            questionnaire_data=q_data
         )
 
         return Response(
@@ -307,3 +335,109 @@ async def download_risk_assessment_docx_bridge(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate DOCX: {str(e)}")
+
+
+@router.get("/bridge/custom-assessment/{assessment_id}/pdf")
+async def download_custom_risk_assessment_pdf_bridge(
+    assessment_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+):
+    """Download a completed CUSTOM risk assessment as PDF via the Bridge."""
+    try:
+        # 1. Fetch assessment data from Bridge
+        assessment = await bridge.get(f"/custom-risk-assessments/id/{assessment_id}")
+        if not assessment:
+            raise HTTPException(status_code=404, detail="Custom Assessment not found")
+        
+        # 2. Fetch Questionnaire, Client and IA data
+        q_id = assessment.get("questionnaire_id")
+        client_id = assessment.get("client_id")
+        
+        client_task = bridge.get(f"/clients/{client_id}")
+        ia_task = bridge.get("/ia-master")
+        q_task = bridge.get(f"/risk-questionnaires/{q_id}")
+        
+        client_data, ia_data, q_data = await asyncio.gather(client_task, ia_task, q_task)
+
+        # 3. Resolve Logo
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path")
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+            except: pass
+
+        # 4. Generate PDF
+        pdf_buffer = ReportService.generate_risk_profile_pdf_bridge(
+            assessment_data=assessment,
+            client_data=client_data,
+            ia_data=ia_data,
+            ia_logo_override=logo_path,
+            questionnaire_data=q_data
+        )
+
+        return Response(
+            content=pdf_buffer.getvalue(),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Custom_Risk_Assessment_{client_data.get('client_name', 'Client')}.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+
+
+@router.get("/bridge/custom-assessment/{assessment_id}/docx")
+async def download_custom_risk_assessment_docx_bridge(
+    assessment_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+):
+    """Download a completed CUSTOM risk assessment as Word via the Bridge."""
+    try:
+        # 1. Fetch assessment data from Bridge
+        assessment = await bridge.get(f"/custom-risk-assessments/id/{assessment_id}")
+        if not assessment:
+            raise HTTPException(status_code=404, detail="Custom Assessment not found")
+        
+        # 2. Fetch Questionnaire, Client and IA data
+        q_id = assessment.get("questionnaire_id")
+        client_id = assessment.get("client_id")
+        
+        client_task = bridge.get(f"/clients/{client_id}")
+        ia_task = bridge.get("/ia-master")
+        q_task = bridge.get(f"/risk-questionnaires/{q_id}")
+        
+        client_data, ia_data, q_data = await asyncio.gather(client_task, ia_task, q_task)
+
+        # 3. Resolve Logo
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path")
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+            except: pass
+
+        # 4. Generate Word
+        docx_buffer = ReportService.generate_risk_profile_docx_bridge(
+            assessment_data=assessment,
+            client_data=client_data,
+            ia_data=ia_data,
+            ia_logo_override=logo_path,
+            questionnaire_data=q_data
+        )
+
+        return Response(
+            content=docx_buffer.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f"attachment; filename=Custom_Risk_Assessment_{client_data.get('client_name', 'Client')}.docx"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate Word: {str(e)}")

@@ -24,6 +24,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement, ns
 from app.services.questionnaire_constants import QUESTIONNAIRE_DATA
 from app.services.risk_profile_service import SCORING_RULES
+from app.utils.encryption import decrypt_string
 
 def resolve_logo_path(logo_path: Optional[str]) -> Optional[str]:
     """Try multiple strategies to find the logo file on disk, matching financial_report_generator.py logic."""
@@ -100,14 +101,18 @@ class ReportService:
         # In current models, we look up IAMaster.
         # Fetch IA details based on advisor registration number
         ia = db.execute(
-            select(IAMaster).where(IAMaster.ia_registration_number == assessment.client.advisor_registration_number)
+            select(IAMaster).where(IAMaster.ia_registration_number == client.advisor_registration_number)
         ).scalar_one_or_none()
         
         # Fallback if IA not found by registration number
         if not ia:
-            ia = db.execute(select(IAMaster)).first()
-            if ia: 
-                ia = ia[0]
+            ia = db.first(select(IAMaster))
+
+        # Decrypt Entity Name
+        entity_name = "N/A"
+        if ia:
+            raw_entity_name = ia.name_of_entity or ia.name_of_ia
+            entity_name = decrypt_string(raw_entity_name) if raw_entity_name else "N/A"
 
         buffer = BytesIO()
         
@@ -191,22 +196,27 @@ class ReportService:
         )
         
         # Logo handling for cover
-        resolved_logo = resolve_logo_path(ia_logo_override or (ia.ia_logo_path if ia else None))
+        raw_logo_path = ia_logo_override or (ia.ia_logo_path if ia else None)
+        decrypted_logo_path = decrypt_string(raw_logo_path) if raw_logo_path else None
+        resolved_logo = resolve_logo_path(decrypted_logo_path)
         if resolved_logo:
             try:
                 logo = Image(resolved_logo, width=2.5*inch, height=1.25*inch, kind='proportional')
+                logo.hAlign = 'CENTER'
                 story.append(Spacer(1, 50))
                 story.append(logo)
-                story.append(Spacer(1, 30))
+                story.append(Spacer(1, 10))
             except Exception as e:
                 print(f"Error rendering logo in risk PDF: {e}")
+        else:
+            story.append(Spacer(1, 100))
         
         story.append(Paragraph("RISK PROFILE ASSESSMENT REPORT", cover_title_style))
         story.append(Spacer(1, 50))
         
         story.append(Paragraph(f"<b>CLIENT NAME:</b> {client.client_name}", cover_subtitle_style))
         story.append(Paragraph(f"<b>CLIENT CODE:</b> {client.client_code}", cover_subtitle_style))
-        story.append(Paragraph(f"<b>ENTITY:</b> {ia.name_of_entity or ia.name_of_ia}", cover_subtitle_style))
+        story.append(Paragraph(f"<b>ENTITY:</b> {entity_name}", cover_subtitle_style))
         story.append(Paragraph(f"<b>DATE:</b> {assessment.assessment_timestamp.strftime('%B %d, %Y')}", cover_subtitle_style))
         
         story.append(PageBreak())
@@ -401,11 +411,16 @@ class ReportService:
             
         client = assessment.client
         ia = db.execute(
-            select(IAMaster).where(IAMaster.ia_registration_number == assessment.client.advisor_name)
+            select(IAMaster).where(IAMaster.ia_registration_number == client.advisor_registration_number)
         ).scalar_one_or_none()
         if not ia:
-            ia = db.execute(select(IAMaster)).first()
-            if ia: ia = ia[0]
+            ia = db.first(select(IAMaster))
+
+        # Decrypt Entity Name
+        entity_name = "N/A"
+        if ia:
+            raw_entity_name = ia.name_of_entity or ia.name_of_ia
+            entity_name = decrypt_string(raw_entity_name) if raw_entity_name else "N/A"
 
         # 2. Setup DOCX
         doc = Document()
@@ -431,7 +446,9 @@ class ReportService:
         ReportService._add_page_number(footer_p.add_run())
 
         # 3a. Cover Page logic
-        resolved_logo = resolve_logo_path(ia_logo_override or (ia.ia_logo_path if ia else None))
+        raw_logo_path = ia_logo_override or (ia.ia_logo_path if ia else None)
+        decrypted_logo_path = decrypt_string(raw_logo_path) if raw_logo_path else None
+        resolved_logo = resolve_logo_path(decrypted_logo_path)
         if resolved_logo:
             doc.add_picture(resolved_logo, width=Inches(2.5))
             last_p = doc.paragraphs[-1]
@@ -450,7 +467,7 @@ class ReportService:
         run.font.size = Pt(14)
         run = subtitle.add_run(f"CLIENT CODE: {client.client_code}\n")
         run.bold = True
-        run = subtitle.add_run(f"ENTITY: {ia.name_of_entity or ia.name_of_ia}\n")
+        run = subtitle.add_run(f"ENTITY: {entity_name}\n")
         run = subtitle.add_run(f"DATE: {assessment.assessment_timestamp.strftime('%B %d, %Y')}")
         
         doc.add_page_break()
@@ -671,9 +688,17 @@ class ReportService:
         questionnaire = assessment.questionnaire
         client = assessment.client
         
-        ia = db.execute(select(IAMaster)).first()
-        if ia: 
-            ia = ia[0]
+        ia = db.execute(
+            select(IAMaster).where(IAMaster.ia_registration_number == client.advisor_registration_number)
+        ).scalar_one_or_none()
+        if not ia:
+            ia = db.first(select(IAMaster))
+
+        # Decrypt Entity Name
+        entity_name = "N/A"
+        if ia:
+            raw_entity_name = ia.name_of_entity or ia.name_of_ia
+            entity_name = decrypt_string(raw_entity_name) if raw_entity_name else "N/A"
 
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -739,13 +764,20 @@ class ReportService:
         )
 
         # 3. Create Cover Page
-        resolved_logo = resolve_logo_path(ia_logo_override or (ia.ia_logo_path if ia else None))
+        raw_logo_path = ia_logo_override or (ia.ia_logo_path if ia else None)
+        decrypted_logo_path = decrypt_string(raw_logo_path) if raw_logo_path else None
+        resolved_logo = resolve_logo_path(decrypted_logo_path)
         if resolved_logo:
             try:
                 logo = Image(resolved_logo, width=2.5*inch, height=1.25*inch, kind='proportional')
+                logo.hAlign = 'CENTER'
                 story.append(Spacer(1, 50))
                 story.append(logo)
-            except: pass
+                story.append(Spacer(1, 10))
+            except:
+                story.append(Spacer(1, 100))
+        else:
+            story.append(Spacer(1, 100))
         
         story.append(Spacer(1, 30))
         story.append(Paragraph("RISK PROFILE ASSESSMENT REPORT", cover_title_style))
@@ -753,8 +785,7 @@ class ReportService:
         
         story.append(Paragraph(f"<b>CLIENT NAME:</b> {client.client_name}", cover_subtitle_style))
         story.append(Paragraph(f"<b>CLIENT CODE:</b> {client.client_code}", cover_subtitle_style))
-        if ia:
-            story.append(Paragraph(f"<b>ENTITY:</b> {ia.name_of_entity or ia.name_of_ia}", cover_subtitle_style))
+        story.append(Paragraph(f"<b>ENTITY:</b> {entity_name}", cover_subtitle_style))
         story.append(Paragraph(f"<b>DATE:</b> {assessment.submitted_at.strftime('%B %d, %Y')}", cover_subtitle_style))
         
         story.append(PageBreak())
@@ -1023,7 +1054,13 @@ class ReportService:
         sig_date = assessment.submitted_at.strftime("%Y-%m-%d")
         sig_table.rows[1].cells[0].text = f"Date: {sig_date}"
     @staticmethod
-    def generate_blank_risk_form_pdf(db: Optional[Session], questionnaire_id: str, ia_logo_override: str = None, ia_data: dict = None) -> BytesIO:
+    def generate_blank_risk_form_pdf(
+        db: Optional[Session], 
+        questionnaire_id: str, 
+        ia_logo_override: str = None, 
+        ia_data: dict = None,
+        questionnaire_data: dict = None
+    ) -> BytesIO:
         # Fetch IA details 
         if ia_data:
             ia = type('MockIA', (), ia_data)() # Convert dict to object-like access if needed, or adapt code
@@ -1068,8 +1105,21 @@ class ReportService:
                     self.disclaimer = None # Remove disclaimer for system default
             
             questionnaire = MockQuestionnaire(mock_questions)
+        elif questionnaire_data:
+            # Use data provided by caller (e.g. from Bridge)
+            class BridgeQuestionnaire:
+                def __init__(self, data):
+                    self.id = data.get('id', 'N/A')
+                    self.questions = data.get('questions') or []
+                    # Bridge returns JSONB as list of dicts, make sure it is parsed
+                    if isinstance(self.questions, str):
+                        import json
+                        self.questions = json.loads(self.questions)
+                    self.disclaimer = data.get('disclaimer')
+            
+            questionnaire = BridgeQuestionnaire(questionnaire_data)
         else:
-            # Fetch custom questionnaire
+            # Fetch custom questionnaire from local DB
             try:
                 q_uuid = uuid.UUID(questionnaire_id)
                 questionnaire = db.execute(
@@ -1683,6 +1733,308 @@ class ReportService:
         cells[1].text = f"Date: ________"
 
         # 8. Save to Buffer
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer
+    @staticmethod
+    def generate_risk_profile_pdf_bridge(
+        assessment_data: dict,
+        client_data: dict,
+        ia_data: dict,
+        ia_logo_override: str = None,
+        questionnaire_data: dict = None
+    ) -> BytesIO:
+        """PDF generator optimized for Bridge data (dictionaries)."""
+        # 1. Prepare data objects (Mock objects for attribute access compatibility)
+        class MockObj:
+            def __init__(self, d):
+                for k, v in d.items():
+                    setattr(self, k, v)
+            def get(self, k, default=None):
+                return getattr(self, k, default)
+
+        assessment = MockObj(assessment_data)
+        client = MockObj(client_data)
+        ia = MockObj(ia_data)
+        
+        # Handle Date parsing
+        if isinstance(assessment.submitted_at, str):
+            try:
+                from dateutil import parser
+                assessment.submitted_at = parser.parse(assessment.submitted_at)
+            except:
+                assessment.submitted_at = datetime.now()
+
+        # Handle Questionnaire
+        if questionnaire_data:
+            questionnaire = MockObj(questionnaire_data)
+        else:
+            # Fallback or error
+            raise ValueError("Questionnaire data required for Bridge PDF generation")
+
+        # 2. Setup Document
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=letter, 
+            topMargin=1.2*inch,
+            bottomMargin=0.7*inch, 
+            leftMargin=0.5*inch, 
+            rightMargin=0.5*inch
+        )
+        
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Define Styles
+        title_style = ParagraphStyle(
+            'CustomTitle', parent=styles['Heading1'], fontSize=20, textColor=colors.HexColor('#1e3c72'),
+            spaceAfter=20, alignment=1, fontName='Helvetica-Bold'
+        )
+        heading_style = ParagraphStyle(
+            'CustomHeading', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#2a5298'),
+            spaceAfter=12, spaceBefore=15, fontName='Helvetica-Bold'
+        )
+        normal_style = ParagraphStyle(
+            'NormalCustom', parent=styles['Normal'], fontSize=9, spaceAfter=4, fontName='Helvetica'
+        )
+        bold_style = ParagraphStyle(
+            'BoldCustom', parent=styles['Normal'], fontSize=9, spaceAfter=4, fontName='Helvetica-Bold'
+        )
+
+        # Cover Page
+        resolved_logo = resolve_logo_path(ia_logo_override or (ia.ia_logo_path if ia else None))
+        if resolved_logo:
+            try:
+                logo = Image(resolved_logo, width=2.5*inch, height=1.25*inch, kind='proportional')
+                story.append(Spacer(1, 100))
+                story.append(logo)
+                story.append(Spacer(1, 50))
+            except: pass
+            
+        story.append(Paragraph("RISK PROFILE ASSESSMENT REPORT", title_style))
+        story.append(Spacer(1, 30))
+        story.append(Paragraph(f"<b>CLIENT NAME:</b> {client.client_name}", normal_style))
+        story.append(Paragraph(f"<b>CLIENT CODE:</b> {client.client_code}", normal_style))
+        if ia:
+            story.append(Paragraph(f"<b>ENTITY:</b> {ia.name_of_entity or ia.name_of_ia}", normal_style))
+        story.append(Paragraph(f"<b>DATE:</b> {assessment.submitted_at.strftime('%B %d, %Y')}", normal_style))
+        
+        story.append(PageBreak())
+
+        # Summary Table
+        story.append(Paragraph("ASSESSMENT SUMMARY", heading_style))
+        summary_data = [
+            ["Total Score:", f"{assessment.total_score} / {getattr(questionnaire, 'max_possible_score', 100)}"],
+            ["Risk Category:", assessment.category_name or "N/A"]
+        ]
+        t = Table(summary_data, colWidths=[2*inch, 3*inch])
+        t.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0,0), (0,-1), colors.whitesmoke),
+        ]))
+        story.append(t)
+        story.append(Spacer(1, 20))
+
+        # Responses
+        story.append(Paragraph("QUESTIONNAIRE RESPONSES", heading_style))
+        responses = getattr(assessment, 'responses', {}) or getattr(assessment, 'answers', {}) or {}
+        
+        q_list = getattr(questionnaire, 'questions', [])
+        for i, q in enumerate(q_list):
+            q_id = q.get('id', f'q_{i}')
+            # Key might be q_177... (as seen in logs)
+            ans = responses.get(q_id, {})
+            
+            story.append(Paragraph(f"<b>{i+1}. {q.get('text', '')}</b> (Score: {ans.get('score', 0)})", normal_style))
+            
+            selected_opt_id = ans.get('option_id')
+            for opt in q.get('options', []):
+                is_sel = str(opt.get('id')) == str(selected_opt_id)
+                prefix = "<b>[X]</b> " if is_sel else "[ ] "
+                color = colors.darkgreen if is_sel else colors.black
+                
+                opt_style = ParagraphStyle('Opt', parent=normal_style, textColor=color, leftIndent=20)
+                story.append(Paragraph(f"{prefix}{opt.get('text', '')}", opt_style))
+            
+            story.append(Spacer(1, 10))
+
+        # Scoring Reference
+        story.append(PageBreak())
+        story.append(Paragraph("SCORING REFERENCE", heading_style))
+        cat_data = [["Category", "Score Range", "Description"]]
+        for cat in getattr(questionnaire, 'categories', []):
+            cat_data.append([
+                cat.get('name', ''),
+                f"{cat.get('min_score')} - {cat.get('max_score')}",
+                cat.get('description', '')
+            ])
+        
+        ct = Table(cat_data, colWidths=[1.5*inch, 1*inch, 3.5*inch])
+        ct.setStyle(TableStyle([
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0,0), (-1,0), colors.whitesmoke),
+        ]))
+        story.append(ct)
+
+        # Discussion
+        if assessment.discussion_notes:
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("DISCUSSION & NOTES", heading_style))
+            story.append(Paragraph(assessment.discussion_notes, normal_style))
+
+        # Signatures
+        story.append(Spacer(1, 50))
+        sig_data = [
+            ["__________________________", "__________________________"],
+            ["Client Signature", "Advisor Signature"],
+            [f"Date: {assessment.submitted_at.strftime('%Y-%m-%d')}", f"Date: {assessment.submitted_at.strftime('%Y-%m-%d')}"]
+        ]
+        st = Table(sig_data, colWidths=[3*inch, 3*inch])
+        st.setStyle(TableStyle([
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]))
+        story.append(st)
+
+        doc.build(story, onFirstPage=ReportService._draw_footer, onLaterPages=ReportService._draw_footer)
+        buffer.seek(0)
+        return buffer
+
+    @staticmethod
+    def generate_risk_profile_docx_bridge(
+        assessment_data: dict,
+        client_data: dict,
+        ia_data: dict,
+        ia_logo_override: str = None,
+        questionnaire_data: dict = None
+    ) -> BytesIO:
+        """Word generator optimized for Bridge data (dictionaries)."""
+        # 1. Prepare data objects
+        class MockObj:
+            def __init__(self, d):
+                for k, v in d.items():
+                    setattr(self, k, v)
+        
+        assessment = MockObj(assessment_data)
+        client = MockObj(client_data)
+        ia = MockObj(ia_data)
+        
+        # Handle Date parsing
+        if isinstance(assessment.submitted_at, str):
+            try:
+                from dateutil import parser
+                assessment.submitted_at = parser.parse(assessment.submitted_at)
+            except:
+                assessment.submitted_at = datetime.now()
+
+        # Handle Questionnaire
+        if questionnaire_data:
+            questionnaire = MockObj(questionnaire_data)
+        else:
+            raise ValueError("Questionnaire data required for Bridge Word generation")
+
+        doc = Document()
+        
+        # Header/Footer Setup
+        section = doc.sections[0]
+        header = section.header
+        header_p = header.paragraphs[0]
+        header_p.text = "STRICTLY CONFIDENTIAL"
+        header_p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        header_p.style.font.bold = True
+        header_p.style.font.size = Pt(8)
+
+        footer = section.footer
+        footer_p = footer.paragraphs[0]
+        footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = footer_p.add_run("Page ")
+        ReportService._add_page_number(footer_p.add_run())
+
+        # Cover Page
+        resolved_logo = resolve_logo_path(ia_logo_override or (ia.ia_logo_path if ia else None))
+        if resolved_logo:
+            try:
+                doc.add_picture(resolved_logo, width=Inches(2.5))
+                doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            except: pass
+
+        for _ in range(5): doc.add_paragraph()
+        title = doc.add_heading('RISK PROFILE ASSESSMENT REPORT', 0)
+        title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        subtitle = doc.add_paragraph()
+        subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        subtitle.add_run(f"\n\n\nCLIENT NAME: {client.client_name}\n").bold = True
+        subtitle.add_run(f"CLIENT CODE: {client.client_code}\n")
+        if ia:
+            entity_name = getattr(ia, 'name_of_entity', None) or getattr(ia, 'name_of_ia', 'N/A')
+            subtitle.add_run(f"ENTITY: {entity_name}\n")
+        subtitle.add_run(f"DATE: {assessment.submitted_at.strftime('%B %d, %Y')}")
+        
+        doc.add_page_break()
+
+        # Summary
+        doc.add_heading('ASSESSMENT SUMMARY', level=1)
+        table = doc.add_table(rows=4, cols=2)
+        table.style = 'Table Grid'
+        summary_rows = [
+            ("Client Name:", client.client_name),
+            ("Date of Assessment:", assessment.submitted_at.strftime("%Y-%m-%d %H:%M")),
+            ("Total Score:", f"{assessment.total_score} / {getattr(questionnaire, 'max_possible_score', 100)}"),
+            ("Risk Category:", assessment.category_name or "N/A")
+        ]
+        for i, (label, value) in enumerate(summary_rows):
+            table.cell(i, 0).text = label
+            table.cell(i, 1).text = value
+            table.cell(i, 0).paragraphs[0].runs[0].bold = True
+
+        doc.add_paragraph().add_run().add_break()
+
+        # Responses
+        doc.add_heading('QUESTIONNAIRE RESPONSES', level=1)
+        responses = getattr(assessment, 'responses', {}) or getattr(assessment, 'answers', {}) or {}
+        q_list = getattr(questionnaire, 'questions', [])
+        
+        for i, q in enumerate(q_list):
+            q_id = q.get('id', f'q_{i}')
+            ans = responses.get(q_id, {})
+            score_text = f" (Score: {ans.get('score', 0)})"
+            
+            p = doc.add_paragraph()
+            p.add_run(f"{i+1}. {q.get('text', '')}{score_text}").bold = True
+            
+            selected_opt_id = ans.get('option_id')
+            for opt in q.get('options', []):
+                is_sel = str(opt.get('id')) == str(selected_opt_id)
+                prefix = "[✓] " if is_sel else "[  ] "
+                
+                option_p = doc.add_paragraph()
+                option_p.paragraph_format.left_indent = Pt(20)
+                r = option_p.add_run(f"{prefix}{opt.get('text', '')}")
+                if is_sel:
+                    r.bold = True
+                    r.font.color.rgb = RGBColor(0, 100, 0)
+            
+            doc.add_paragraph()
+
+        # Discussion
+        if assessment.discussion_notes:
+            doc.add_heading('DISCUSSION & NOTES', level=1)
+            doc.add_paragraph(assessment.discussion_notes)
+
+        # Signatures
+        doc.add_paragraph().add_run().add_break()
+        sig_table = doc.add_table(rows=2, cols=2)
+        sig_table.rows[0].cells[0].text = "__________________________\nClient Signature"
+        sig_table.rows[0].cells[1].text = "__________________________\nAdvisor Signature"
+        sig_date = assessment.submitted_at.strftime("%Y-%m-%d")
+        sig_table.rows[1].cells[0].text = f"Date: {sig_date}"
+        sig_table.rows[1].cells[1].text = f"Date: {sig_date}"
+
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
