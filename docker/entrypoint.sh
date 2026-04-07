@@ -5,6 +5,9 @@ set -e
 echo "Starting Significia service..."
 
 if [ "$1" = "api" ]; then
+    echo "Running Database Migrations..."
+    alembic upgrade head
+    
     echo "Running FastAPI server"
     if [ "$RELOAD" = "true" ]; then
         exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

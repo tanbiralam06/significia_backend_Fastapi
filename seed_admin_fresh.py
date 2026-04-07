@@ -1,4 +1,7 @@
+import os
 import uuid
+import secrets
+import getpass
 from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -9,12 +12,52 @@ from app.database.base import Base
 import app.models # Ensure all models are registered in Base
 from app.core.security import get_password_hash
 
-DATABASE_URL = "postgresql+psycopg://significia:significia@localhost:5432/significia"
+# Use Environment Variable for Database URL
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    # Fallback for local development if not set
+    DATABASE_URL = "postgresql+psycopg://significia:significia@localhost:5432/significia"
+
+def create_super_admin(db, email, password, full_name, phone_number, designation, tenant_id):
+    """Helper to create a super admin and their staff profile."""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            email=email,
+            email_normalized=email.lower(),
+            password_hash=get_password_hash(password),
+            role="super_admin",
+            status="active"
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        print(f"Created Super Admin User: {email}")
+    else:
+        print(f"Super Admin User {email} already exists.")
+
+    profile = db.query(StaffProfile).filter(StaffProfile.user_id == user.id).first()
+    if not profile:
+        profile = StaffProfile(
+            user_id=user.id,
+            full_name=full_name,
+            phone_number=phone_number,
+            designation=designation,
+            address="Significia Headquarters"
+        )
+        db.add(profile)
+        db.commit()
+        print(f"Created Staff Profile for: {full_name}")
+    else:
+        print(f"Staff Profile already exists for: {full_name}")
 
 def seed():
+    print(f"Connecting to database: {DATABASE_URL.split('@')[-1]}")
     engine = create_engine(DATABASE_URL)
     
-    # 0. Sync Schema (Create missing tables like staff_profiles, admin_activity_logs)
+    # 0. Sync Schema
     print("Synchronizing database schema...")
     Base.metadata.create_all(bind=engine)
     
@@ -36,40 +79,46 @@ def seed():
             db.refresh(tenant)
             print(f"Created Master Tenant: {tenant.id}")
 
-        # 2. Create Super Admin User
-        admin_email = "admin@significia.com"
-        user = db.query(User).filter(User.email == admin_email).first()
-        if not user:
-            user = User(
-                id=uuid.uuid4(),
-                tenant_id=tenant.id,
-                email=admin_email,
-                email_normalized=admin_email.lower(),
-                password_hash=get_password_hash("Admin@123"),
-                role="super_admin",
-                status="active"
-            )
-            db.add(user)
-            db.commit()
-            print(f"Created Super Admin: {admin_email}")
-        else:
-            print("Super Admin already exists.")
+        # 2. Create Default Hardcoded Super Admin
+        print("\n--- Step 1: Creating Default Super Admin ---")
+        create_super_admin(
+            db, 
+            email="alamtanbir328@gmail.com",
+            password="T@nbir#2026",
+            full_name="Tanbir Alam",
+            phone_number="8927611404",
+            designation="System Admin",
+            tenant_id=tenant.id
+        )
 
-        # 3. Ensure Staff Profile exists for Super Admin
-        profile = db.query(StaffProfile).filter(StaffProfile.user_id == user.id).first()
-        if not profile:
-            profile = StaffProfile(
-                user_id=user.id,
-                full_name="Significia Administrator",
-                phone_number="+91 00000 00000",
-                designation="Founder / System Architect",
-                address="Significia Headquarters"
+        # 3. Create Additional Super Admins Interactively
+        print("\n--- Step 2: Creating Additional Super Admins (2 remaining) ---")
+        for i in range(1, 3):
+            print(f"\nRegistering Super Admin #{i+1}")
+            email = input("Email: ").strip()
+            if not email:
+                print("Skipping...")
+                continue
+            
+            name = input("Full Name: ").strip()
+            password = getpass.getpass("Password: ")
+            confirm_password = getpass.getpass("Confirm Password: ")
+            
+            if password != confirm_password:
+                print("Error: Passwords do not match. Skipping this admin.")
+                continue
+            
+            create_super_admin(
+                db,
+                email=email,
+                password=password,
+                full_name=name,
+                phone_number="0000000000", # Placeholder
+                designation="Super Admin",
+                tenant_id=tenant.id
             )
-            db.add(profile)
-            db.commit()
-            print("Created Staff Profile for Super Admin.")
-        else:
-            print("Staff Profile already exists for Super Admin.")
+
+        print("\nSeeding completed successfully!")
 
     except Exception as e:
         print(f"Seeding failed: {e}")
