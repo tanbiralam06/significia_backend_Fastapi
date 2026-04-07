@@ -24,6 +24,8 @@ try:
         """Custom PDF Canvas class with 'Page x of y' in footer and Entity Name in header."""
         def __init__(self, *args, **kwargs):
             self.entity_name = kwargs.pop('entity_name', "")
+            self.advisor_name = kwargs.pop('advisor_name', "")
+            self.ia_reg_no = kwargs.pop('ia_reg_no', "")
             canvas.Canvas.__init__(self, *args, **kwargs)
             self._saved_page_states = []
 
@@ -43,8 +45,19 @@ try:
             # Footer: Page numbers
             self.setFont("Helvetica", 9)
             current_page = self._pageNumber
-            text = f"Page {current_page} of {page_count}"
-            self.drawCentredString(300, 20, text)
+            page_text = f"Page {current_page} of {page_count}"
+            self.drawRightString(570, 20, page_text)
+            
+            # Footer: Prepared by / Entity Name / Reg No (left-aligned)
+            if any([self.advisor_name, self.entity_name, self.ia_reg_no]):
+                self.setFont("Helvetica-Oblique", 7)
+                self.setFillColor(colors.grey)
+                footer_parts = []
+                if self.advisor_name: footer_parts.append(f"Prepared by: {self.advisor_name}")
+                if self.entity_name: footer_parts.append(f"Entity: {self.entity_name}")
+                if self.ia_reg_no: footer_parts.append(f"Reg No: {self.ia_reg_no}")
+                footer_text = " , ".join(footer_parts)
+                self.drawString(30, 20, footer_text)
             
             # Header: Entity Name (top-left)
             if self.entity_name:
@@ -175,9 +188,11 @@ class FinancialReportGenerator:
 
         buffer = io.BytesIO()
         
-        # Factory for canvas with ia_name
+        # Factory for canvas with ia_name and advisor_name
         def canvas_factory(*args, **kwargs):
-            return NumberedCanvas(*args, entity_name=ia_name, **kwargs)
+            advisor_name = profile.client.advisor_name if hasattr(profile, 'client') and profile.client else None
+            ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
+            return NumberedCanvas(*args, entity_name=ia_name, advisor_name=advisor_name, ia_reg_no=ia_reg_no, **kwargs)
 
         doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=50, bottomMargin=40)
         elements = []
@@ -678,7 +693,7 @@ class FinancialReportGenerator:
         return buffer
 
     @staticmethod
-    def generate_blank_form(ia_logo_path: Optional[str] = None, ia_name: Optional[str] = None) -> io.BytesIO:
+    def generate_blank_form(ia_logo_path: Optional[str] = None, ia_name: Optional[str] = None, advisor_name: Optional[str] = None, ia_reg_no: Optional[str] = None) -> io.BytesIO:
         """Generate a professionally styled, grid-based blank Financial Analysis Form."""
         if not PDF_AVAILABLE:
             raise ImportError("reportlab is not installed.")
@@ -906,7 +921,7 @@ class FinancialReportGenerator:
         elements.append(t_sig)
 
         def canvas_factory(*args, **kwargs):
-            return NumberedCanvas(*args, entity_name=ia_name, **kwargs)
+            return NumberedCanvas(*args, entity_name=ia_name, advisor_name=advisor_name, ia_reg_no=ia_reg_no, **kwargs)
 
         doc.build(elements, canvasmaker=canvas_factory)
         buffer.seek(0)
@@ -1194,6 +1209,24 @@ class FinancialReportGenerator:
         doc.add_paragraph("Signature of Client                   Signature of IA")
         doc.add_paragraph(f"Date: {datetime.now().strftime('%d %B, %Y')}            Date: {datetime.now().strftime('%d %B, %Y')}")
         doc.add_paragraph()
+
+        # Add Page Footer
+        section = doc.sections[0]
+        footer = section.footer
+        f_p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+        f_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        
+        # Resolve data
+        prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
+        ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else 'N/A'
+        
+        footer_parts = [f"Prepared by: {prepared_by}", f"Entity: {ia_name or 'N/A'}", f"Reg No: {ia_reg_no}"]
+        footer_text = " | ".join(footer_parts)
+        
+        f_run = f_p.add_run(footer_text)
+        f_run.font.size = Pt(8)
+        f_run.font.color.rgb = RGBColor(0x80, 0x80, 0x80)
+        f_run.italic = True
 
         buffer = io.BytesIO()
         doc.save(buffer)
