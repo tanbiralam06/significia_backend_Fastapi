@@ -83,20 +83,20 @@ class InsuranceInput(BaseModel):
 
 class AssumptionsInput(BaseModel):
     """14 calculation assumption parameters with sensible defaults."""
-    retirement_age: int = 60
-    le_client: int = 85         # Life expectancy - client
-    le_spouse: int = 85         # Life expectancy - spouse
-    inflation: float = 6.0
-    medical_inflation: float = 10.0
-    pre_ret_rate: float = 12.0  # Pre-retirement return rate
-    post_ret_rate: float = 8.0  # Post-retirement return rate
-    sol_hlv: float = 70.0       # Standard of living % for HLV
-    sol_ret: float = 80.0       # Standard of living % for retirement
-    inc_inc_rate: float = 6.0   # Income increment rate
-    child_education_corpus: float = 0.0
-    education_years: int = 5
-    child_marriage_corpus: float = 0.0
-    marriage_years: int = 10
+    retirement_age: int = 0
+    le_client: int = 0         # Life expectancy - client
+    le_spouse: int = 0         # Life expectancy - spouse
+    inflation: float = 0
+    medical_inflation: float = 0
+    pre_ret_rate: float = 0  # Pre-retirement return rate
+    post_ret_rate: float = 0  # Post-retirement return rate
+    sol_hlv: float = 0       # Standard of living % for HLV
+    sol_ret: float = 0       # Standard of living % for retirement
+    inc_inc_rate: float = 0   # Income increment rate
+    child_education_corpus: float = 0
+    education_years: int = 0
+    child_marriage_corpus: float = 0
+    marriage_years: int = 0
 
     @field_validator('retirement_age')
     @classmethod
@@ -138,12 +138,12 @@ class FinancialAnalysisCreate(BaseModel):
     assumptions: AssumptionsInput = AssumptionsInput()
 
     # Medical bonus
-    medical_bonus_years: float = 0.0
-    medical_bonus_percentage: float = 0.0
+    medical_bonus_years: float = 0
+    medical_bonus_percentage: float = 0
 
     # Investment allocation
-    education_investment_pct: float = 0.0
-    marriage_investment_pct: float = 0.0
+    education_investment_pct: float = 0
+    marriage_investment_pct: float = 0
 
     # Report options
     exclude_ai: bool = False
