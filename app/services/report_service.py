@@ -385,6 +385,8 @@ class ReportService:
 
         # 7. Signature Section
         story.append(Spacer(1, 40))
+        story.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client", normal_style))
+        story.append(Spacer(1, 15))
         sig_date = assessment.assessment_timestamp.strftime("%Y-%m-%d")
         
         sig_data = [
@@ -655,6 +657,7 @@ class ReportService:
 
         # 7. Signature Section
         doc.add_paragraph().add_run().add_break()
+        doc.add_paragraph("All inputs provided above have been discussed with and confirmed by the client")
         doc.add_paragraph().add_run().add_break()
         
         sig_table = doc.add_table(rows=2, cols=2)
@@ -895,6 +898,8 @@ class ReportService:
 
         # 7. Signature Section
         story.append(Spacer(1, 40))
+        story.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client", normal_style))
+        story.append(Spacer(1, 15))
         sig_date = assessment.submitted_at.strftime("%Y-%m-%d")
         sig_data = [
             [Paragraph("<b>__________________________</b><br/>Client Signature", normal_style), 
@@ -1072,6 +1077,8 @@ class ReportService:
             doc.add_paragraph(questionnaire.disclaimer)
 
         # Signatures
+        doc.add_paragraph().add_run().add_break()
+        doc.add_paragraph("All inputs provided above have been discussed with and confirmed by the client")
         doc.add_paragraph().add_run().add_break()
         sig_table = doc.add_table(rows=2, cols=2)
         sig_table.width = Inches(6)
@@ -1305,6 +1312,8 @@ class ReportService:
         
         # 9. Signature Section
         story.append(Spacer(1, 30))
+        story.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client", normal_style))
+        story.append(Spacer(1, 15))
         sig_data = [
             [Paragraph("<b>__________________________</b><br/>Client Signature<br/><br/>Date: __________________", normal_style), 
              Paragraph("<b>__________________________</b><br/>IA Advisor Signature<br/><br/>Date: __________________", normal_style)]
@@ -1525,6 +1534,8 @@ class ReportService:
 
         # Signatures
         story.append(Spacer(1, 40))
+        story.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client", normal_style))
+        story.append(Spacer(1, 15))
         sig_data = [
             [Paragraph("<b>__________________________</b><br/>Client Signature", normal_style), 
              Paragraph("<b>__________________________</b><br/>IA Advisor Signature", normal_style)],
@@ -1755,6 +1766,7 @@ class ReportService:
 
         # 7. Signature Section
         doc.add_paragraph().add_run().add_break()
+        doc.add_paragraph("All inputs provided above have been discussed with and confirmed by the client")
         doc.add_paragraph().add_run().add_break()
         
         sig_table = doc.add_table(rows=2, cols=2)
@@ -1924,6 +1936,8 @@ class ReportService:
 
         # Signatures
         story.append(Spacer(1, 50))
+        story.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client", normal_style))
+        story.append(Spacer(1, 15))
         sig_data = [
             ["__________________________", "__________________________"],
             ["Client Signature", "Advisor Signature"],
@@ -2063,6 +2077,8 @@ class ReportService:
             doc.add_paragraph(assessment.discussion_notes)
 
         # Signatures
+        doc.add_paragraph().add_run().add_break()
+        doc.add_paragraph("All inputs provided above have been discussed with and confirmed by the client")
         doc.add_paragraph().add_run().add_break()
         sig_table = doc.add_table(rows=2, cols=2)
         sig_table.rows[0].cells[0].text = "__________________________\nClient Signature"
