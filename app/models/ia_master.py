@@ -82,10 +82,6 @@ class AuditTrail(Base):
     __tablename__ = "audit_trail"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Changed client_id to tenant_id to match our architecture if needed, 
-    # but for now keeping it generic as per the original script if the original script meant 'subject'
-    # Actually original script had client_id REFERENCES client_profile(id). 
-    # I'll use a generic record_id and table_name.
     action_type: Mapped[str] = mapped_column(String(50), nullable=False)
     table_name: Mapped[str] = mapped_column(String(100), nullable=False)
     record_id: Mapped[str] = mapped_column(String(100), nullable=False) # UUID as string or integer ID
@@ -93,6 +89,15 @@ class AuditTrail(Base):
     user_ip: Mapped[Optional[str]] = mapped_column(String(45))
     user_agent: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+
+    # ── SEBI-SAFE Compliance Fields ──────────────────────────────
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    field_changed: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    old_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    new_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    change_reason_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    change_reason_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    entity_version: Mapped[Optional[int]] = mapped_column(nullable=True)
 
 class ContactPerson(Base):
     __tablename__ = "contact_persons"
@@ -110,3 +115,46 @@ class ContactPerson(Base):
     
     # Relationships
     ia_master: Mapped["IAMaster"] = relationship("IAMaster", back_populates="contact_persons")
+
+
+# ── SEBI-SAFE Compliance Models ──────────────────────────────────
+
+class ReportHistory(Base):
+    """
+    Tracks every report generation event with version control.
+    SEBI requirement: If a report is regenerated, maintain Version 1, Version 2… 
+    with downloadable history.
+    """
+    __tablename__ = "report_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    report_type: Mapped[str] = mapped_column(String(50), nullable=False)  # risk_assessment, asset_allocation, financial_analysis
+    version_number: Mapped[int] = mapped_column(default=1)
+    source_record_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    source_version: Mapped[Optional[int]] = mapped_column(nullable=True)
+    file_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_format: Mapped[str] = mapped_column(String(10), default="pdf")
+    change_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_delivered: Mapped[bool] = mapped_column(default=False)
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+
+
+class IAMasterVersion(Base):
+    """
+    Immutable version snapshots of IA Master data.
+    SEBI requirement: Every edit must create a new version while keeping old versions intact.
+    """
+    __tablename__ = "iamaster_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    original_user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    version_number: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[str] = mapped_column(Text, nullable=False)  # JSONB snapshot of full record state
+    change_reason_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    change_reason_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    changed_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+

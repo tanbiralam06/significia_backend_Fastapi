@@ -6,11 +6,11 @@ IA Master data operations now go through the Bridge.
 import logging
 import uuid
 import json
-from typing import List, Optional
+from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.responses import Response
 
-from app.api.deps import get_bridge_client, get_current_tenant, get_db
+from app.api.deps import get_bridge_client, get_current_tenant, get_db, get_current_user
 from sqlalchemy.orm import Session
 from app.services.bridge_client import BridgeClient
 from app.services.ia_master_service import IAMasterService
@@ -37,6 +37,7 @@ async def create_ia_entry(
     nature_of_entity: str = Form(...),
     date_of_birth: Optional[str] = Form(None),
     name_of_entity: Optional[str] = Form(None),
+    basl_membership_id: str = Form(...),
     ia_registration_number: str = Form(...),
     date_of_registration: str = Form(...),
     date_of_registration_expiry: str = Form(...),
@@ -67,6 +68,7 @@ async def create_ia_entry(
             "date_of_birth": date_of_birth,
             "nature_of_entity": nature_of_entity,
             "name_of_entity": name_of_entity,
+            "basl_membership_id": basl_membership_id,
             "ia_registration_number": ia_registration_number,
             "date_of_registration": date_of_registration,
             "date_of_registration_expiry": date_of_registration_expiry,
@@ -115,6 +117,7 @@ async def update_ia_entry(
     nature_of_entity: str = Form(None),
     date_of_birth: str = Form(None),
     name_of_entity: Optional[str] = Form(None),
+    basl_membership_id: Optional[str] = Form(None),
     ia_registration_number: str = Form(None),
     date_of_registration: str = Form(None),
     date_of_registration_expiry: str = Form(None),
@@ -130,9 +133,12 @@ async def update_ia_entry(
     ia_certificate: Optional[UploadFile] = File(None),
     ia_signature: Optional[UploadFile] = File(None),
     ia_logo: Optional[UploadFile] = File(None),
+    change_reason_type: str = Form("data_update"),
+    change_reason_text: str = Form("Manual update"),
     bridge: BridgeClient = Depends(get_bridge_client),
     db: Session = Depends(get_db),
-    tenant: Tenant = Depends(get_current_tenant)
+    tenant: Tenant = Depends(get_current_tenant),
+    current_user: Any = Depends(get_current_user)
 ):
     """
     Update IA Registration via the Bridge.
@@ -144,12 +150,17 @@ async def update_ia_entry(
             k: v for k, v in {
                 "name_of_ia": name_of_ia, "nature_of_entity": nature_of_entity,
                 "date_of_birth": date_of_birth,
-                "name_of_entity": name_of_entity, "ia_registration_number": ia_registration_number,
+                "name_of_entity": name_of_entity, 
+                "basl_membership_id": basl_membership_id,
+                "ia_registration_number": ia_registration_number,
                 "date_of_registration": date_of_registration, "date_of_registration_expiry": date_of_registration_expiry,
                 "registered_address": registered_address, "registered_contact_number": registered_contact_number,
                 "office_contact_number": office_contact_number, "registered_email_id": registered_email_id,
                 "cin_number": cin_number, "bank_account_number": bank_account_number,
                 "bank_name": bank_name, "bank_branch": bank_branch, "ifsc_code": ifsc_code,
+                "editing_user_id": str(current_user.id),
+                "change_reason_type": change_reason_type,
+                "change_reason_text": change_reason_text,
             }.items() if v is not None
         }
 
@@ -259,3 +270,100 @@ def check_and_update_profile_completion(db: Session, tenant: Tenant, bridge_data
         db.commit()
         db.refresh(tenant)
     return is_complete
+
+
+# ══════════════════════════════════════════════════════════════════
+#  SEBI-SAFE COMPLIANCE — Bridge Proxy Endpoints
+# ══════════════════════════════════════════════════════════════════
+
+@router.get("/sebi/audit-trail")
+async def get_sebi_audit_trail(
+    table_name: str = None,
+    record_id: str = None,
+    limit: int = 100,
+    offset: int = 0,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Fetch SEBI-compliant audit trail from the Bridge."""
+    params = {"limit": limit, "offset": offset}
+    if table_name:
+        params["table_name"] = table_name
+    if record_id:
+        params["record_id"] = record_id
+    return await bridge.get("/sebi/audit-trail", params=params)
+
+
+@router.get("/sebi/ia-master/versions")
+async def get_ia_versions(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Retrieve all IA Master version snapshots."""
+    return await bridge.get("/sebi/ia-master/versions")
+
+
+@router.get("/sebi/ia-master/versions/{version_number}")
+async def get_ia_version(
+    version_number: int,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Get a specific version snapshot."""
+    return await bridge.get(f"/sebi/ia-master/versions/{version_number}")
+
+
+@router.post("/sebi/ia-master/lock")
+async def lock_ia_master(
+    payload: dict,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Lock the IA Master record."""
+    return await bridge.post("/sebi/ia-master/lock", payload)
+
+
+@router.post("/sebi/ia-master/unlock")
+async def unlock_ia_master(
+    payload: dict,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Unlock the IA Master record (owner only)."""
+    return await bridge.post("/sebi/ia-master/unlock", payload)
+
+
+@router.get("/sebi/report-history")
+async def get_report_history(
+    client_id: str = None,
+    report_type: str = None,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Retrieve report generation history."""
+    params = {}
+    if client_id:
+        params["client_id"] = client_id
+    if report_type:
+        params["report_type"] = report_type
+    return await bridge.get("/sebi/report-history", params=params)
+
+
+@router.post("/sebi/report-history")
+async def create_report_history(
+    data: dict,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Record a report generation event."""
+    return await bridge.post("/sebi/report-history", data)
+
+
+@router.post("/sebi/report-history/{report_id}/deliver")
+async def mark_report_delivered(
+    report_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Mark a report as delivered to client."""
+    return await bridge.post(f"/sebi/report-history/{report_id}/deliver")
+
+
+@router.get("/sebi/ia-master/change-summary")
+async def get_change_summary(
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Get human-readable change summary for IA Master."""
+    return await bridge.get("/sebi/ia-master/change-summary")

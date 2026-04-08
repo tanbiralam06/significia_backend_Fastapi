@@ -39,6 +39,7 @@ class IAMasterBase(BaseModel):
     date_of_birth: Optional[date] = None
     nature_of_entity: str
     name_of_entity: Optional[str] = None
+    basl_membership_id: str
     ia_registration_number: str
     date_of_registration: Optional[date] = None
     date_of_registration_expiry: Optional[date] = None
@@ -93,6 +94,14 @@ class AuditTrailBase(BaseModel):
     changes: Optional[str] = None
     user_ip: Optional[str] = None
     user_agent: Optional[str] = None
+    # ── SEBI-SAFE Compliance Fields ──
+    user_id: Optional[UUID] = None
+    field_changed: Optional[str] = None
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+    change_reason_type: Optional[str] = None
+    change_reason_text: Optional[str] = None
+    entity_version: Optional[int] = None
 
 class AuditTrailCreate(AuditTrailBase):
     pass
@@ -105,3 +114,51 @@ class AuditTrailRead(AuditTrailBase):
 # Validation Response
 class IANumberValidationResponse(BaseModel):
     exists: bool
+
+
+# ── SEBI-SAFE Compliance Schemas ──────────────────────────────
+
+class ReportHistoryRead(BaseModel):
+    """Schema for report version tracking responses."""
+    id: UUID
+    client_id: Optional[UUID] = None
+    report_type: str
+    version_number: int
+    source_record_id: Optional[UUID] = None
+    source_version: Optional[int] = None
+    file_path: Optional[str] = None
+    file_format: str = "pdf"
+    change_summary: Optional[str] = None
+    is_delivered: bool = False
+    delivered_at: Optional[datetime] = None
+    created_by: Optional[UUID] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class IAMasterVersionRead(BaseModel):
+    """Schema for immutable IA Master version snapshots."""
+    id: UUID
+    original_user_id: UUID
+    version_number: int
+    snapshot: dict
+    change_reason_type: Optional[str] = None
+    change_reason_text: Optional[str] = None
+    changed_by: Optional[UUID] = None
+    changed_fields: Optional[list] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class ChangeSummaryEntry(BaseModel):
+    """A single entry in the change history summary."""
+    version: int
+    summary: str
+    reason_type: Optional[str] = None
+    reason_text: Optional[str] = None
+    changed_fields: Optional[list] = None
+    timestamp: datetime
+
+class ChangeSummaryResponse(BaseModel):
+    """Response for the change summary endpoint."""
+    change_history: list[ChangeSummaryEntry]
+    total_versions: int
+
