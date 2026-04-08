@@ -186,7 +186,10 @@ class RiskProfileService:
             db.add(risk_master)
             db.flush()
 
-        # 5. Log Audit
+        # 5. Update client profile directly for fast access
+        client.risk_profile = risk_tier
+
+        # 6. Log Audit
         audit = IAMasterAuditTrail(
             action_type="RISK_ASSESSMENT_SAVE",
             table_name="risk_assessments",

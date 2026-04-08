@@ -141,7 +141,10 @@ class CustomRiskProfileService:
             )
             db.add(risk_master)
         
-        # 7. Audit Log
+        # 7. Update client profile for quick lookup
+        client.risk_profile = category_name
+        
+        # 8. Audit Log
         audit = IAMasterAuditTrail(
             action_type="CUSTOM_RISK_ASSESSMENT_SAVE",
             table_name="custom_risk_assessments",

@@ -45,7 +45,11 @@ This edited asset allocation represents an evolution of investment strategy. Reg
     def validate_client_for_allocation(db: Session, client_code: str) -> Dict:
         """
         Validates client code and returns profile/risk data.
+        Achieves parity with Risk Profile dashboard by querying assessment logs directly.
         """
+        from app.models.risk_profile import RiskAssessment, CustomRiskAssessment, RiskQuestionnaire
+        from app.core.timezone import get_now_ist
+        
         client = db.execute(
             select(ClientProfile).where(ClientProfile.client_code == client_code)
         ).scalar_one_or_none()
@@ -53,21 +57,48 @@ This edited asset allocation represents an evolution of investment strategy. Reg
         if not client:
             return {"success": False, "error": "Client code not found"}
         
-        # Get latest risk tier from ClientRiskMaster
-        risk_master = db.execute(
-            select(ClientRiskMaster)
-            .where(ClientRiskMaster.client_id == client.id)
-            .order_by(ClientRiskMaster.submitted_at.desc())
+        # 1. Fetch latest Standard Assessment
+        standard_assessment = db.execute(
+            select(RiskAssessment)
+            .where(RiskAssessment.client_id == client.id)
+            .order_by(RiskAssessment.assessment_timestamp.desc())
+        ).scalars().first()
+        
+        # 2. Fetch latest Custom Assessment (Joined with Questionnaire for Portfolio Name)
+        custom_row = db.execute(
+            select(CustomRiskAssessment, RiskQuestionnaire.portfolio_name)
+            .join(RiskQuestionnaire, CustomRiskAssessment.questionnaire_id == RiskQuestionnaire.id)
+            .where(CustomRiskAssessment.client_id == client.id)
+            .order_by(CustomRiskAssessment.submitted_at.desc())
         ).first()
+
+        category_name = "Not Available"
+        form_name = None
         
-        # If not found in risk master, check client profile directly
-        category_name = risk_master[0].category_name if risk_master else client.risk_profile
+        # 3. Determine latest assessment with timezone-safe aware minimum
+        aware_min = get_now_ist().replace(year=1900, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        standard_ts = standard_assessment.assessment_timestamp if standard_assessment else aware_min
+        custom_ts = custom_row[0].submitted_at if custom_row else aware_min
         
+        if standard_assessment and (not custom_row or standard_ts >= custom_ts):
+            category_name = standard_assessment.assigned_risk_tier
+            form_name = standard_assessment.form_name or "Standard Assessment"
+        elif custom_row:
+            # result index [0] is CustomRiskAssessment object, [1] is portfolio_name string from join
+            category_name = custom_row[0].category_name
+            form_name = custom_row[1]
+
+        # 4. Fallback to client.risk_profile ONLY if no assessment exists
+        if category_name == "Not Available" and client.risk_profile:
+            category_name = client.risk_profile
+            form_name = "Client Profile"
+
         return {
             "success": True,
             "client_name": client.client_name,
             "registration_number": client.advisor_registration_number,
-            "category_name": category_name or "Not Available"
+            "category_name": category_name,
+            "form_name": form_name
         }
 
     @staticmethod
@@ -153,17 +184,56 @@ This edited asset allocation represents an evolution of investment strategy. Reg
 
     @staticmethod
     def list_allocations(db: Session) -> List[dict]:
+        from app.models.risk_profile import RiskAssessment, CustomRiskAssessment, RiskQuestionnaire
+        from app.core.timezone import get_now_ist
+        
         results = db.execute(
             select(AssetAllocation, ClientProfile.client_name, ClientProfile.client_code)
             .join(ClientProfile, AssetAllocation.client_id == ClientProfile.id)
             .order_by(AssetAllocation.created_at.desc())
         ).all()
         
+        aware_min = get_now_ist().replace(year=1900, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         output = []
         for row in results:
             allocation = row[0]
+            client_id = allocation.client_id
+            
+            # 1. Fetch latest assessments active at or before allocation creation
+            standard_assessment = db.execute(
+                select(RiskAssessment)
+                .where(RiskAssessment.client_id == client_id)
+                .where(RiskAssessment.assessment_timestamp <= allocation.created_at)
+                .order_by(RiskAssessment.assessment_timestamp.desc())
+            ).scalars().first()
+            
+            custom_row = db.execute(
+                select(CustomRiskAssessment, RiskQuestionnaire.portfolio_name)
+                .join(RiskQuestionnaire, CustomRiskAssessment.questionnaire_id == RiskQuestionnaire.id)
+                .where(CustomRiskAssessment.client_id == client_id)
+                .where(CustomRiskAssessment.submitted_at <= allocation.created_at)
+                .order_by(CustomRiskAssessment.submitted_at.desc())
+            ).first()
+
+            # 2. Determine true tier and source form
+            true_tier = allocation.assigned_risk_tier
+            source_form = None
+            
+            standard_ts = standard_assessment.assessment_timestamp if standard_assessment else aware_min
+            custom_ts = custom_row[0].submitted_at if custom_row else aware_min
+            
+            if standard_assessment and (not custom_row or standard_ts >= custom_ts):
+                true_tier = standard_assessment.assigned_risk_tier
+                source_form = standard_assessment.form_name or "Standard Assessment"
+            elif custom_row:
+                true_tier = custom_row[0].category_name
+                source_form = custom_row[1] # portfolio_name from join
+                
+            allocation.assigned_risk_tier = true_tier # Ensure this is the Category Name
             allocation.client_name = row.client_name
             allocation.client_code = row.client_code
+            allocation.form_name = source_form 
+            
             output.append(allocation)
             
         return output

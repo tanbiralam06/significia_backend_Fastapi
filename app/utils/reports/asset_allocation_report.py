@@ -18,8 +18,10 @@ from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from app.models.asset_allocation import AssetAllocation
 from app.models.ia_master import IAMaster
+from app.models.asset_allocation import AssetAllocation
+
+DEFAULT_ASSET_ALLOCATION_DISCLAIMER = """This asset allocation report is prepared based on the client's risk profile and financial goals as assessed by the Investment Advisor. The allocation percentages represent a recommended distribution of investable assets and should be reviewed periodically. Past performance is not indicative of future results. This report does not constitute investment advice and is prepared solely for informational and planning purposes in accordance with SEBI Investment Advisor Regulations."""
 
 class AssetAllocationReportUtils:
     @staticmethod
@@ -184,8 +186,7 @@ class AssetAllocationReportUtils:
         story.append(Spacer(1, 2.0*inch))
 
         story.append(Paragraph("DISCLAIMER", heading_style))
-        disclaimer = "This asset allocation report is prepared based on the client's risk profile and financial goals as assessed by the Investment Advisor. The allocation percentages represent a recommended distribution of investable assets and should be reviewed periodically. Past performance is not indicative of future results."
-        story.append(Paragraph(disclaimer, styles['Italic']))
+        story.append(Paragraph(DEFAULT_ASSET_ALLOCATION_DISCLAIMER, styles['Italic']))
 
         # Signatures
         story.append(Spacer(1, 0.5*inch))
@@ -467,6 +468,12 @@ class AssetAllocationReportUtils:
                 story.append(img)
             story.append(Spacer(1, 15))
 
+        # Advisor Recommendation
+        if allocation.tier_recommendation:
+            story.append(Paragraph("ADVISOR RECOMMENDATION", heading_style))
+            story.append(Paragraph(allocation.tier_recommendation, normal_style))
+            story.append(Spacer(1, 10))
+
         # System Conclusion
         if allocation.system_conclusion:
             story.append(Paragraph("CONCLUSION", heading_style))
@@ -476,7 +483,11 @@ class AssetAllocationReportUtils:
 
         # Disclaimer
         story.append(Paragraph("DISCLAIMER", heading_style))
-        story.append(Paragraph(allocation.disclaimer_text or "No disclaimer provided.", styles['Italic']))
+        story.append(Paragraph(DEFAULT_ASSET_ALLOCATION_DISCLAIMER, styles['Italic']))
+        
+        if allocation.disclaimer_text:
+            story.append(Spacer(1, 10))
+            story.append(Paragraph(allocation.disclaimer_text, styles['Italic']))
 
         # Discussion Notes
         if allocation.discussion_notes:
@@ -655,7 +666,11 @@ class AssetAllocationReportUtils:
                 chart_bytes = AssetAllocationReportUtils.create_pie_chart(cm_l, cm_s, "Commodities Breakdown", ['#f59e0b', '#f7b13c', '#fac56d'])
                 doc.add_picture(io.BytesIO(chart_bytes), width=Inches(3.5))
 
-        # 6. Conclusion & Notes
+        # 6. Advisor Recommendation & Conclusion
+        if allocation.tier_recommendation:
+            doc.add_heading('ADVISOR RECOMMENDATION', level=1)
+            doc.add_paragraph(allocation.tier_recommendation)
+
         if allocation.system_conclusion:
             doc.add_heading('CONCLUSION', level=1)
             doc.add_paragraph(allocation.system_conclusion)
@@ -665,8 +680,10 @@ class AssetAllocationReportUtils:
             doc.add_paragraph(allocation.discussion_notes)
 
         doc.add_heading('DISCLAIMER', level=2)
-        p = doc.add_paragraph(allocation.disclaimer_text)
-        p.italic = True
+        doc.add_paragraph(DEFAULT_ASSET_ALLOCATION_DISCLAIMER).italic = True
+        
+        if allocation.disclaimer_text:
+            doc.add_paragraph(allocation.disclaimer_text).italic = True
 
         # 7. Signatures for Word
         doc.add_paragraph('\n\n')
