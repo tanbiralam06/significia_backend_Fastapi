@@ -7,7 +7,7 @@ No direct database connections are made from this backend.
 from typing import List
 import uuid
 from datetime import datetime, date
-from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_bridge_client, get_current_tenant, get_db, get_current_user
@@ -190,7 +190,9 @@ async def get_client_count_bridge(
 
 @router.get("/report")
 async def download_client_master_report(
+    request: Request,
     bridge: BridgeClient = Depends(get_bridge_client),
+    current_user: Any = Depends(get_current_user),
 ):
     """
     Generate and download the Client Code Master Report for all clients via the Bridge.
@@ -233,6 +235,20 @@ async def download_client_master_report(
         pdf_bytes = ClientPDFGenerator.generate_client_master_report(clients, ia_data=ia_data)
         
         date_str = datetime.now().strftime('%Y-%m-%d')
+        
+        # --- SEBI AUDIT ---
+        await bridge.post("/sebi/audit", {
+            "action_type": "EXPORT",
+            "table_name": "clients",
+            "record_id": "MASTER_REPORT",
+            "change_reason_type": "report_generation",
+            "change_reason_text": f"Client Master Report Exported ({date_str})"
+        }, headers={
+            "X-User-Id": str(current_user.id),
+            "X-User-IP": request.client.host if request.client else "0.0.0.0",
+            "X-User-Agent": request.headers.get("User-Agent", "Unknown")
+        })
+
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -247,7 +263,9 @@ async def download_client_master_report(
 @router.get("/clients/{client_id}/pdf")
 async def download_client_individual_report(
     client_id: uuid.UUID,
+    request: Request,
     bridge: BridgeClient = Depends(get_bridge_client),
+    current_user: Any = Depends(get_current_user),
 ):
     """
     Generate and download a detailed personal report for a specific client via the Bridge.
@@ -271,6 +289,20 @@ async def download_client_individual_report(
         pdf_bytes = ClientPDFGenerator.generate_client_report(client, ia_data=ia_data)
         
         client_name = client.get("client_name", "Client").replace(" ", "_")
+        
+        # --- SEBI AUDIT ---
+        await bridge.post("/sebi/audit", {
+            "action_type": "EXPORT",
+            "table_name": "clients",
+            "record_id": str(client_id),
+            "change_reason_type": "report_generation",
+            "change_reason_text": f"Individual Client Report Exported: {client.get('client_name')}"
+        }, headers={
+            "X-User-Id": str(current_user.id),
+            "X-User-IP": request.client.host if request.client else "0.0.0.0",
+            "X-User-Agent": request.headers.get("User-Agent", "Unknown")
+        })
+
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

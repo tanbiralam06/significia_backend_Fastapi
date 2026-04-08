@@ -7,7 +7,7 @@ import logging
 import uuid
 import json
 from typing import List, Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile, Form, Request
 from fastapi.responses import Response
 
 from app.api.deps import get_bridge_client, get_current_tenant, get_db, get_current_user
@@ -217,14 +217,29 @@ async def get_all_ias(
 @router.get("/{ia_id}/pdf")
 async def download_ia_pdf(
     ia_id: uuid.UUID, 
+    request: Request,
     bridge: BridgeClient = Depends(get_bridge_client),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user),
 ):
     """Proxy PDF download to the Bridge (using Backend generator)."""
     try:
         service = IAMasterService()
         pdf_bytes, filename = await service.generate_pdf_bridge(db, bridge)
         
+        # --- SEBI AUDIT ---
+        await bridge.post("/sebi/audit", {
+            "action_type": "EXPORT",
+            "table_name": "iamaster",
+            "record_id": str(ia_id),
+            "change_reason_type": "report_generation",
+            "change_reason_text": "IA Master Data PDF Report Exported"
+        }, headers={
+            "X-User-Id": str(current_user.id),
+            "X-User-IP": request.client.host if request.client else "0.0.0.0",
+            "X-User-Agent": request.headers.get("User-Agent", "Unknown")
+        })
+
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

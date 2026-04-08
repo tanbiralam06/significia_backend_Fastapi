@@ -74,14 +74,21 @@ class BridgeClient:
             headers["X-User-Role"] = str(self.user.role)
         return headers
 
-    async def get(self, path: str, params: Optional[Dict] = None) -> Any:
+    def _merge_headers(self, custom_headers: Optional[Dict[str, str]] = None, skip_content_type: bool = False) -> Dict[str, str]:
+        """Merge base headers with optional custom headers."""
+        base = self._headers(skip_content_type=skip_content_type)
+        if custom_headers:
+            base.update(custom_headers)
+        return base
+
+    async def get(self, path: str, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> Any:
         """Send a GET request to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge GET] tenant={self.tenant_name} path={path}")
 
         async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT_SECONDS) as client:
             try:
-                response = await client.get(url, headers=self._headers(), params=params)
+                response = await client.get(url, headers=self._merge_headers(headers), params=params)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 logger.error(f"[Bridge TIMEOUT] tenant={self.tenant_name} path={path}")
@@ -90,14 +97,14 @@ class BridgeClient:
                 logger.error(f"[Bridge OFFLINE] tenant={self.tenant_name} path={path}")
                 raise HTTPException(503, "Bridge is offline. Please contact your administrator.")
 
-    async def post(self, path: str, data: Any = None) -> Any:
+    async def post(self, path: str, data: Any = None, headers: Optional[Dict] = None) -> Any:
         """Send a POST request to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge POST] tenant={self.tenant_name} path={path}")
 
         async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT_SECONDS) as client:
             try:
-                response = await client.post(url, headers=self._headers(), json=jsonable_encoder(data))
+                response = await client.post(url, headers=self._merge_headers(headers), json=jsonable_encoder(data))
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 logger.error(f"[Bridge TIMEOUT] tenant={self.tenant_name} path={path}")
@@ -106,14 +113,14 @@ class BridgeClient:
                 logger.error(f"[Bridge OFFLINE] tenant={self.tenant_name} path={path}")
                 raise HTTPException(503, "Bridge is offline. Please contact your administrator.")
 
-    async def put(self, path: str, data: Any = None) -> Any:
+    async def put(self, path: str, data: Any = None, headers: Optional[Dict] = None) -> Any:
         """Send a PUT request to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge PUT] tenant={self.tenant_name} path={path}")
 
         async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT_SECONDS) as client:
             try:
-                response = await client.put(url, headers=self._headers(), json=jsonable_encoder(data))
+                response = await client.put(url, headers=self._merge_headers(headers), json=jsonable_encoder(data))
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 logger.error(f"[Bridge TIMEOUT] tenant={self.tenant_name} path={path}")
@@ -122,35 +129,42 @@ class BridgeClient:
                 logger.error(f"[Bridge OFFLINE] tenant={self.tenant_name} path={path}")
                 raise HTTPException(503, "Bridge is offline. Please contact your administrator.")
 
-    async def patch(self, path: str, data: Any = None) -> Any:
+    async def patch(self, path: str, data: Any = None, headers: Optional[Dict] = None) -> Any:
         """Send a PATCH request to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge PATCH] tenant={self.tenant_name} path={path}")
 
         async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT_SECONDS) as client:
             try:
-                response = await client.patch(url, headers=self._headers(), json=jsonable_encoder(data))
+                response = await client.patch(url, headers=self._merge_headers(headers), json=jsonable_encoder(data))
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge is not responding. Please try again later.")
             except httpx.ConnectError:
                 raise HTTPException(503, "Bridge is offline. Please contact your administrator.")
 
-    async def delete(self, path: str) -> Any:
+    async def delete(self, path: str, headers: Optional[Dict] = None) -> Any:
         """Send a DELETE request to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge DELETE] tenant={self.tenant_name} path={path}")
 
         async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT_SECONDS) as client:
             try:
-                response = await client.delete(url, headers=self._headers())
+                response = await client.delete(url, headers=self._merge_headers(headers))
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge is not responding. Please try again later.")
             except httpx.ConnectError:
                 raise HTTPException(503, "Bridge is offline. Please contact your administrator.")
 
-    async def upload_file(self, path: str, file_bytes: bytes, filename: str, content_type: str = "application/octet-stream") -> Any:
+    async def upload_file(
+        self, 
+        path: str, 
+        file_bytes: bytes, 
+        filename: str, 
+        content_type: str = "application/octet-stream",
+        headers: Optional[Dict] = None
+    ) -> Any:
         """Upload a single file to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge UPLOAD] tenant={self.tenant_name} path={path} file={filename}")
@@ -158,21 +172,21 @@ class BridgeClient:
         async with httpx.AsyncClient(timeout=60) as client:
             try:
                 files = {"file": (filename, file_bytes, content_type)}
-                response = await client.post(url, headers=self._headers(skip_content_type=True), files=files)
+                response = await client.post(url, headers=self._merge_headers(headers, skip_content_type=True), files=files)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge upload timed out. Please try again.")
             except httpx.ConnectError:
                 raise HTTPException(503, "Bridge is offline. Cannot upload files.")
 
-    async def post_multipart(self, path: str, data: Dict[str, Any], files: Dict[str, Any]) -> Any:
+    async def post_multipart(self, path: str, data: Dict[str, Any], files: Dict[str, Any], headers: Optional[Dict] = None) -> Any:
         """Send a POST request with multiple files and form data to the Bridge."""
         url = f"{self.base_url}{path}"
         logger.info(f"[Bridge MULTIPART] tenant={self.tenant_name} path={path}")
 
         async with httpx.AsyncClient(timeout=60) as client:
             try:
-                response = await client.post(url, headers=self._headers(skip_content_type=True), data=data, files=files)
+                response = await client.post(url, headers=self._merge_headers(headers, skip_content_type=True), data=data, files=files)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge multipart request timed out.")
