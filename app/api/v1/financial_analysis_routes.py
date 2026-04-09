@@ -14,7 +14,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from types import SimpleNamespace
 
-from app.api.deps import get_bridge_client
+from app.api.deps import get_bridge_client, get_db
+from app.utils.file_utils import resolve_logo_to_local_path
 from app.services.bridge_client import BridgeClient
 from app.analysis.financial_calculator import FinancialCalculator
 from app.analysis.ai_commentary import SystemCommentaryGenerator
@@ -493,6 +494,7 @@ async def get_analysis_details_bridge(
 async def download_analysis_pdf_bridge(
     id: str,
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
 ):
     """Download Financial Analysis Report in PDF format."""
     result_data, profile_data = await fetch_analysis_data(id, bridge)
@@ -516,6 +518,16 @@ async def download_analysis_pdf_bridge(
     except:
         pass
 
+    # Resolve logo to local path from Bridge storage
+    resolved_logo_path = None
+    if ia_logo_path:
+        try:
+            url_resp = await bridge.get("/storage/url", params={"key": ia_logo_path})
+            if url_resp.get("url"):
+                resolved_logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+        except Exception as e:
+            logger.warning(f"Failed to resolve IA logo for financial report: {e}")
+
     # Convert dicts to objects for the generator
     result_obj = dict_to_obj(result_data)
     profile_obj = dict_to_obj(profile_data)
@@ -526,7 +538,7 @@ async def download_analysis_pdf_bridge(
         result=result_obj,
         profile=profile_obj,
         client_name=client_name,
-        ia_logo_path=ia_logo_path,
+        ia_logo_path=resolved_logo_path or ia_logo_path,
         ia_name=ia_name
     )
 
@@ -543,6 +555,7 @@ async def download_analysis_pdf_bridge(
 async def download_analysis_word_bridge(
     id: str,
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
 ):
     """Download Financial Analysis Report in Word format."""
     result_data, profile_data = await fetch_analysis_data(id, bridge)
@@ -566,6 +579,16 @@ async def download_analysis_word_bridge(
     except:
         pass
 
+    # Resolve logo to local path from Bridge storage
+    resolved_logo_path = None
+    if ia_logo_path:
+        try:
+            url_resp = await bridge.get("/storage/url", params={"key": ia_logo_path})
+            if url_resp.get("url"):
+                resolved_logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+        except Exception as e:
+            logger.warning(f"Failed to resolve IA logo for financial report (Word): {e}")
+
     result_obj = dict_to_obj(result_data)
     profile_obj = dict_to_obj(profile_data)
     profile_obj.client = dict_to_obj(client)
@@ -574,7 +597,7 @@ async def download_analysis_word_bridge(
         result=result_obj,
         profile=profile_obj,
         client_name=client_name,
-        ia_logo_path=ia_logo_path,
+        ia_logo_path=resolved_logo_path or ia_logo_path,
         ia_name=ia_name
     )
 
@@ -590,6 +613,7 @@ async def download_analysis_word_bridge(
 @router.get("/bridge/form")
 async def download_blank_form_bridge(
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
 ):
     """Generate and download a blank Financial Analysis Form."""
     # Fetch IA metadata
@@ -603,7 +627,17 @@ async def download_blank_form_bridge(
     except:
         pass
 
-    pdf_buffer = FinancialReportGenerator.generate_blank_form(ia_logo_path=ia_logo_path, ia_name=ia_name)
+    # Resolve logo to local path from Bridge storage
+    resolved_logo_path = None
+    if ia_logo_path:
+        try:
+            url_resp = await bridge.get("/storage/url", params={"key": ia_logo_path})
+            if url_resp.get("url"):
+                resolved_logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+        except Exception as e:
+            logger.warning(f"Failed to resolve IA logo for blank form: {e}")
+
+    pdf_buffer = FinancialReportGenerator.generate_blank_form(ia_logo_path=resolved_logo_path or ia_logo_path, ia_name=ia_name)
     
     return StreamingResponse(
         pdf_buffer,

@@ -9,6 +9,7 @@ import uuid
 import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from app.utils.encryption import decrypt_string
 
 # PDF generation imports
 try:
@@ -224,7 +225,8 @@ class FinancialReportGenerator:
         elements.append(Spacer(1, 40))
         
         # Logo - Center it using a table
-        resolved_logo = resolve_logo_path(ia_logo_path)
+        decrypted_logo_path = decrypt_string(ia_logo_path) if ia_logo_path else None
+        resolved_logo = resolve_logo_path(decrypted_logo_path)
         if resolved_logo:
             try:
                 logo = Image(resolved_logo, width=1.8*inch, height=1.8*inch)
@@ -758,7 +760,8 @@ class FinancialReportGenerator:
 
         # --- HEADER ---
         header_data = []
-        resolved_logo = resolve_logo_path(ia_logo_path)
+        decrypted_logo_path = decrypt_string(ia_logo_path) if ia_logo_path else None
+        resolved_logo = resolve_logo_path(decrypted_logo_path)
         if resolved_logo:
             try:
                 logo = Image(resolved_logo, width=0.8*inch, height=0.8*inch)
@@ -997,7 +1000,8 @@ class FinancialReportGenerator:
         # Cover Page
         for _ in range(3): doc.add_paragraph()
         
-        resolved_logo = resolve_logo_path(ia_logo_path)
+        decrypted_logo_path = decrypt_string(ia_logo_path) if ia_logo_path else None
+        resolved_logo = resolve_logo_path(decrypted_logo_path)
         if resolved_logo:
             try:
                 # Add logo in a centered paragraph
