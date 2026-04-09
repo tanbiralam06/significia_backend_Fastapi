@@ -558,6 +558,19 @@ async def download_analysis_pdf_bridge(
 
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
     
+    # Log report download to SEBI Audit Trail
+    try:
+        await bridge.post("/sebi/audit", data={
+            "action_type": "DOWNLOAD",
+            "table_name": "financial_analysis_profiles",
+            "record_id": str(profile_data.get("id") or id),
+            "change_reason_type": "report_generation",
+            "change_reason_text": f"Financial Analysis PDF Report downloaded for {client_name}",
+            "entity_version": profile_data.get("version_number", 1)
+        })
+    except Exception as e:
+        logger.warning(f"Failed to log PDF download audit: {e}")
+
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
@@ -617,6 +630,19 @@ async def download_analysis_word_bridge(
 
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.docx"
     
+    # Log report download to SEBI Audit Trail
+    try:
+        await bridge.post("/sebi/audit", data={
+            "action_type": "DOWNLOAD",
+            "table_name": "financial_analysis_profiles",
+            "record_id": str(profile_data.get("id") or id),
+            "change_reason_type": "report_generation",
+            "change_reason_text": f"Financial Analysis Word Report downloaded for {client_name}",
+            "entity_version": profile_data.get("version_number", 1)
+        })
+    except Exception as e:
+        logger.warning(f"Failed to log Word download audit: {e}")
+
     return StreamingResponse(
         word_buffer,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
