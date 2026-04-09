@@ -106,7 +106,7 @@ def resolve_logo_path(logo_path: Optional[str]) -> Optional[str]:
     if not logo_path:
         return None
         
-    # Strategy 1: Absolute path (most likely from resolve_logo_to_local_path utility)
+    # Strategy 1: Absolute path
     if os.path.isabs(logo_path) and os.path.exists(logo_path):
         return logo_path
         
@@ -117,15 +117,29 @@ def resolve_logo_path(logo_path: Optional[str]) -> Optional[str]:
     # Strategy 3: Relative to backend root
     file_dir = os.path.dirname(os.path.abspath(__file__))
     backend_root = os.path.abspath(os.path.join(file_dir, '..', '..'))
+    
+    # Try direct join
     joined_path = os.path.join(backend_root, logo_path)
     if os.path.exists(joined_path):
         return joined_path
 
-    # Strategy 4: Try prepending 'uploads/' if it's a relative path starting with 'ia_documents'
-    if not logo_path.startswith('uploads/') and 'ia_documents' in logo_path:
-        uploads_path = os.path.join(backend_root, 'uploads', logo_path)
-        if os.path.exists(uploads_path):
-            return uploads_path
+    # Strategy 4: Handle ia_documents prefix (common in this app)
+    if 'ia_documents' in logo_path:
+        # If it doesn't already have 'uploads/' prefix, try adding it
+        if not logo_path.startswith('uploads/'):
+            updated_path = os.path.join(backend_root, 'uploads', logo_path)
+            if os.path.exists(updated_path):
+                return updated_path
+        else:
+            # If it already has 'uploads/', Strategy 3 should have caught it, 
+            # but let's be extra sure about the backend_root join
+            pass
+
+    # Strategy 5: Strip leading slash if any
+    if logo_path.startswith('/'):
+        stripped_path = os.path.join(backend_root, logo_path.lstrip('/'))
+        if os.path.exists(stripped_path):
+            return stripped_path
 
     return None
 
@@ -207,36 +221,59 @@ class FinancialReportGenerator:
         normal_style.leading = 14
 
         # Cover Page
-        elements.append(Spacer(1, 100))
+        elements.append(Spacer(1, 40))
+        
+        # Logo - Center it using a table
         resolved_logo = resolve_logo_path(ia_logo_path)
         if resolved_logo:
             try:
-                logo = Image(resolved_logo, width=1.5*inch, height=1.5*inch)
-                elements.append(logo)
+                logo = Image(resolved_logo, width=1.8*inch, height=1.8*inch)
+                logo_table = Table([[logo]], colWidths=[6.5*inch])
+                logo_table.setStyle(TableStyle([
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ]))
+                elements.append(logo_table)
             except Exception as e:
                 print(f"Error rendering logo: {e}")
         
-        elements.append(Spacer(1, 20))
-        elements.append(Paragraph('FINANCIAL ANALYSIS REPORT', title_style))
-        elements.append(Spacer(1, 10))
-        prepared_by = ia_name or profile.client.advisor_name or 'INVESTMENT ADVISOR'
-        cover_details = [
-            [Paragraph(f"<b>CLIENT NAME:</b> {client_name.upper()}", normal_style)],
-            [Paragraph(f"<b>PREPARED BY:</b> {prepared_by.upper()}", normal_style)],
-            [Paragraph(f"<b>REPORT DATE:</b> {datetime.now().strftime('%d %B, %Y').upper()}", normal_style)]
+        elements.append(Spacer(1, 60))
+        
+        # Main Title with horizontal rules
+        title_style_centered = ParagraphStyle('ReportTitleCentered', parent=title_style, alignment=1, fontSize=28, textColor=colors.HexColor('#0f172a'))
+        elements.append(Paragraph('FINANCIAL ANALYSIS REPORT', title_style_centered))
+        
+        # Horizontal Rule
+        from reportlab.platypus import HRFlowable
+        elements.append(HRFlowable(width="60%", thickness=2, color=colors.HexColor('#334155'), spaceBefore=20, spaceAfter=20))
+        
+        elements.append(Spacer(1, 40))
+        
+        # Centered Details
+        detail_style = ParagraphStyle('CoverDetail', parent=normal_style, alignment=1, fontSize=12, leading=20)
+        prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
+        
+        details_data = [
+            [Paragraph(f"<b>CLIENT NAME:</b> {client_name.upper()}", detail_style)],
         ]
-        if profile.client.client_code:
-            cover_details.insert(1, [Paragraph(f"<b>CLIENT CODE:</b> {profile.client.client_code}", normal_style)])
+        
+        if hasattr(profile, 'client') and profile.client and profile.client.client_code:
+            details_data.append([Paragraph(f"<b>CLIENT CODE:</b> {profile.client.client_code.upper()}", detail_style)])
             
-        t_cover = Table(cover_details, colWidths=[4.5*inch])
+        details_data.append([Paragraph(f"<b>PREPARED BY:</b> {prepared_by.upper()}", detail_style)])
+        details_data.append([Paragraph(f"<b>REPORT DATE:</b> {datetime.now().strftime('%d %B, %Y').upper()}", detail_style)])
+            
+        t_cover = Table(details_data, colWidths=[6.5*inch])
         t_cover.setStyle(TableStyle([
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
             ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 12),
+            ('TOPPADDING', (0,0), (-1,-1), 10),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 10),
         ]))
         elements.append(t_cover)
         
         elements.append(PageBreak())
+        # --- END PREMIUM COVER PAGE ---
         # --- END PREMIUM COVER PAGE ---
 
         # 1. CLIENT INFORMATION
@@ -948,39 +985,49 @@ class FinancialReportGenerator:
         htable.cell(0, 1).paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
         htable.cell(0, 1).paragraphs[0].runs[0].font.size = Pt(8)
         htable.cell(0, 1).paragraphs[0].runs[0].italic = True
-
+        
         # Cover Page
-        for _ in range(5): doc.add_paragraph()
+        for _ in range(3): doc.add_paragraph()
         
         resolved_logo = resolve_logo_path(ia_logo_path)
         if resolved_logo:
             try:
-                doc.add_picture(resolved_logo, width=Inches(2.5))
-                doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                # Add logo in a centered paragraph
+                logo_para = doc.add_paragraph()
+                logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                run = logo_para.add_run()
+                run.add_picture(resolved_logo, width=Inches(2.0))
             except Exception as e:
-                print(f"Error rendering logo in Word report: {e}")
+                print(f"Error rendering logo in DOCX: {e}")
         
-        for _ in range(2): doc.add_paragraph()
+        for _ in range(3): doc.add_paragraph()
         
-        title = doc.add_heading("COMPREHENSIVE FINANCIAL ANALYSIS REPORT", 0)
+        # Title
+        title = doc.add_heading('FINANCIAL ANALYSIS REPORT', 0)
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        for _ in range(4): doc.add_paragraph()
+        # Spacer
+        doc.add_paragraph()
         
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(f"CLIENT NAME: {client_name.upper()}\n")
-        run.bold = True
-        if profile.client.client_code:
-            p.add_run(f"CLIENT CODE: {profile.client.client_code}\n")
+        # Details
+        prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
         
-        prepared_by = ia_name or profile.client.advisor_name or 'INVESTMENT ADVISOR'
-        p.add_run(f"PREPARED BY: {prepared_by}\n")
-        p.add_run(f"REPORT DATE: {datetime.now().strftime('%d %B, %Y').upper()}")
-        
-        doc.add_page_break()
-        # --- END PREMIUM COVER PAGE ---
+        def add_centered_detail(label, value):
+            p = doc.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = p.add_run(f"{label}: ")
+            run.bold = True
+            p.add_run(value.upper())
 
+        add_centered_detail("CLIENT NAME", client_name)
+        if hasattr(profile, 'client') and profile.client and profile.client.client_code:
+            add_centered_detail("CLIENT CODE", profile.client.client_code)
+        
+        add_centered_detail("PREPARED BY", prepared_by)
+        add_centered_detail("REPORT DATE", datetime.now().strftime('%d %B, %Y'))
+
+        doc.add_page_break() 
+        # 1. Client Profile
         def add_table(title, data):
             doc.add_heading(title, level=1)
             table = doc.add_table(rows=len(data), cols=len(data[0]))
