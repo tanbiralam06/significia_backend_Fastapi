@@ -299,7 +299,17 @@ async def get_analysis_details_bridge(
     # Mirroring FinancialAnalysisService.get_calculation_details logic
     calculations = result.get("calculations", {})
     assumptions = profile.get("assumptions", {})
-    total_expenses = profile.get("expenses", {}).get("total", 0)
+    total_expenses = calculations.get("total_expenses", 0)
+    current_age = FinancialCalculator.calculate_current_age(profile.get("dob"))
+    retirement_age = assumptions.get("retirement_age", 60)
+    years_to_retirement = max(0, retirement_age - current_age)
+    
+    def format_pct(v):
+        try:
+            val = float(v)
+            return int(val) if val == int(val) else val
+        except:
+            return v
     
     # We reconstruct the 'details' list for the frontend
     details = []
@@ -312,23 +322,24 @@ async def get_analysis_details_bridge(
                 'step': 1,
                 'description': 'Annual Income to be Replaced',
                 'formula': 'Income_Replaced = Annual_Income × SOL_HLV%',
-                'calculation': f'Rs {profile.get("annual_income", 0):,} × {assumptions.get("sol_hlv", 70)}%',
+                'calculation': f'Rs {int(profile.get("annual_income", 0)):,} × {format_pct(assumptions.get("sol_hlv", 70))}%',
                 'result': f'Rs {int(profile.get("annual_income", 0) * (assumptions.get("sol_hlv", 70)/100)):,}',
             },
             {
                 'step': 2,
                 'description': 'Replacement Corpus (PV of Annuity)',
                 'formula': 'HLV = Income_Replaced × [(1 - (1+i/1+r)^n) / (r-i)]',
-                'calculation': f'Years: {assumptions.get("le_spouse", 85) - FinancialCalculator.calculate_current_age(profile.get("dob"))}',
-                'result': f'Total HLV: Rs {result.get("hlv_data", {}).get("hlv_income_method", 0):,}',
+                'calculation': f'Income: Rs {int(profile.get("annual_income", 0) * (assumptions.get("sol_hlv", 70)/100)):,} | i: {format_pct(assumptions.get("inflation", 6))}% | r: {format_pct(assumptions.get("pre_ret_rate", 12))}% | n: {years_to_retirement or 0} years',
+                'result': f'Total HLV: Rs {calculations.get("hlv_income_method", 0):,}',
             }
         ]
     })
 
     # 2. Retirement
     e_adjusted = total_expenses * (assumptions.get("sol_ret", 80) / 100)
-    years_to_retirement = (assumptions.get("retirement_age", 60) - 
-                         FinancialCalculator.calculate_current_age(profile.get("dob")))
+    years_in_retirement = max(1, assumptions.get("le_client", 85) - assumptions.get("retirement_age", 60))
+    e_retirement_annual = e_adjusted * ((1 + assumptions.get("inflation", 6)/100) ** (years_to_retirement or 0))
+    e_retirement_monthly = e_retirement_annual / 12
     
     details.append({
         'section': 'Retirement Planning',
@@ -337,12 +348,14 @@ async def get_analysis_details_bridge(
                 'step': 1,
                 'description': 'Inflation-Adjusted Monthly Expenses at Retirement',
                 'formula': 'E_retirement = E_today × (1 + i)^n',
-                'calculation': f'Today: Rs {int(e_adjusted/12):,} | Inflation: {assumptions.get("inflation", 6)}% | Years: {years_to_retirement}',
-                'result': f'Monthly at Retirement: Rs {int(calculations.get("retirement_corpus_at_retirement", 0) / 120):,}' # Approx monthly draw
+                'calculation': f'Today: Rs {int(e_adjusted/12):,} | Inflation: {format_pct(assumptions.get("inflation", 6))}% | Years: {years_to_retirement}',
+                'result': f'Monthly at Retirement: Rs {int(e_retirement_monthly):,}'
             },
             {
                 'step': 2,
                 'description': 'Total Retirement Corpus Required',
+                'formula': 'Corpus = E_retirement_annual × [1 - ((1 + i) / (1 + r))^n] / (r - i)',
+                'calculation': f'Annual Expense: Rs {int(e_retirement_annual):,} | i: {format_pct(assumptions.get("inflation", 6))}% | r: {format_pct(assumptions.get("post_ret_rate", 8))}% | n: {years_in_retirement} years',
                 'result': f'Rs {calculations.get("retirement_corpus_at_retirement", 0):,}'
             }
         ]
@@ -357,13 +370,14 @@ async def get_analysis_details_bridge(
                 'step': 1,
                 'description': 'Estimated Medical Corpus at Retirement',
                 'formula': 'Medical_FV = Current_Cover × (1 + i_med)^n',
-                'calculation': f'Current Cover: Rs {medical_data.get("current_medical_cover", 0):,} | Inflation: {assumptions.get("medical_inflation", 10)}% | Years: {years_to_retirement}',
+                'calculation': f'Current Cover: Rs {medical_data.get("current_medical_cover", 0):,} | Medical Inflation: {format_pct(assumptions.get("medical_inflation", 10))}% | Years: {years_to_retirement}',
                 'result': f'Rs {medical_data.get("medical_corpus_at_retirement", 0):,}'
             },
             {
                 'step': 2,
                 'description': 'Shortfall to be Funded',
                 'formula': 'Shortfall = Medical_FV - (Current_Cover + Accumulated_Bonus)',
+                'calculation': f'Medical FV: Rs {medical_data.get("medical_corpus_at_retirement", 0):,} - (Cover: Rs {medical_data.get("current_medical_cover", 0):,} + Bonus: Rs {medical_data.get("total_coverage_at_retirement", 0) - medical_data.get("current_medical_cover", 0):,})',
                 'result': f'Rs {medical_data.get("balance_needed_at_retirement", 0):,}'
             }
         ]
@@ -377,13 +391,15 @@ async def get_analysis_details_bridge(
                 'step': 1,
                 'description': 'Inflation-Adjusted Cost of Education',
                 'formula': 'FV = Current_Cost × (1 + i)^n',
-                'calculation': f'Today: Rs {result.get("education_corpus_today", 0):,} | Inflation: {assumptions.get("inflation", 6)}% | Years: {assumptions.get("education_years", 0)}',
-                'result': f'Rs {result.get("education_future_needed", 0):,}'
+                'calculation': f'Current Cost: Rs {calculations.get("education_corpus_today", 0):,} | Inflation: {format_pct(assumptions.get("inflation", 6))}% | Years: {assumptions.get("education_years", 0)}',
+                'result': f'Rs {calculations.get("education_future_needed", 0):,}'
             },
             {
                 'step': 2,
                 'description': 'Net Corpus Needed (After existing investments)',
-                'result': f'Rs {result.get("education_net_corpus", 0):,}'
+                'formula': 'Net_Corpus = Future_Cost - FV_Allocated_Investments',
+                'calculation': f'Future Cost: Rs {calculations.get("education_future_needed", 0):,} - FV Investments: Rs {calculations.get("fv_allocated_education", 0):,}',
+                'result': f'Rs {calculations.get("education_net_corpus", 0):,}'
             }
         ]
     })
@@ -396,13 +412,15 @@ async def get_analysis_details_bridge(
                 'step': 1,
                 'description': 'Inflation-Adjusted Cost of Marriage',
                 'formula': 'FV = Current_Cost × (1 + i)^n',
-                'calculation': f'Today: Rs {result.get("marriage_corpus_today", 0):,} | Inflation: {assumptions.get("inflation", 6)}% | Years: {assumptions.get("marriage_years", 0)}',
-                'result': f'Rs {result.get("marriage_future_needed", 0):,}'
+                'calculation': f'Current Cost: Rs {calculations.get("marriage_corpus_today", 0):,} | Inflation: {format_pct(assumptions.get("inflation", 6))}% | Years: {assumptions.get("marriage_years", 0)}',
+                'result': f'Rs {calculations.get("marriage_future_needed", 0):,}'
             },
             {
                 'step': 2,
                 'description': 'Net Corpus Needed (After existing investments)',
-                'result': f'Rs {result.get("marriage_net_corpus", 0):,}'
+                'formula': 'Net_Corpus = Future_Cost - FV_Allocated_Investments',
+                'calculation': f'Future Cost: Rs {calculations.get("marriage_future_needed", 0):,} - FV Investments: Rs {calculations.get("fv_allocated_marriage", 0):,}',
+                'result': f'Rs {calculations.get("marriage_net_corpus", 0):,}'
             }
         ]
     })
@@ -416,12 +434,14 @@ async def get_analysis_details_bridge(
                 'description': 'Total Fund Required (6 Months Expenses)',
                 'formula': 'Fund = Monthly_Expense × 6',
                 'calculation': f'Monthly: Rs {int(total_expenses/12):,} × 6',
-                'result': f'Rs {result.get("emergency_fund_needed", 0):,}'
+                'result': f'Rs {calculations.get("emergency_fund_needed", 0):,}'
             },
             {
                 'step': 2,
                 'description': 'Current Shortfall',
-                'result': f'Rs {result.get("emergency_fund_shortfall", 0):,}'
+                'formula': 'Shortfall = Required_Fund - Current_Cash',
+                'calculation': f'Required: Rs {calculations.get("emergency_fund_needed", 0):,} - Cash: Rs {max(0, calculations.get("emergency_fund_needed", 0) - calculations.get("emergency_fund_shortfall", 0)):,}',
+                'result': f'Rs {calculations.get("emergency_fund_shortfall", 0):,}'
             }
         ]
     })
@@ -434,12 +454,15 @@ async def get_analysis_details_bridge(
                 'step': 1,
                 'description': 'Savings Rate',
                 'formula': 'Rate = (Income - Expense) / Income',
-                'result': f'{result.get("savings_rate", 0)}%'
+                'calculation': f'Annual Income: Rs {profile.get("annual_income", 0):,} | Total Expenses: Rs {total_expenses:,}',
+                'result': f'{format_pct(calculations.get("savings_rate", 0))}%'
             },
             {
                 'step': 2,
                 'description': 'Overall Financial Health Score',
-                'result': f'{result.get("financial_health_score", 0)}/100'
+                'formula': 'Weighted avg of: Savings (40%), Life Ins (20%), Emergency Fund (20%), Medical Ins (10%), Net Worth (10%)',
+                'calculation': f'Savings: {calculations.get("savings_rate", 0)}% coverage | Score out of 100 based on core financial stability metrics',
+                'result': f'{calculations.get("financial_health_score", 0)}/100'
             }
         ]
     })
@@ -451,8 +474,9 @@ async def get_analysis_details_bridge(
             {
                 'step': 1,
                 'description': 'Aggregate Target Monthly Investment',
-                'formula': 'Total_SIP = SIP_Retire + SIP_Medical + SIP_Edu + SIP_Marriage + SIP_Insurance + SIP_Emergency',
-                'result': f'Rs {result.get("total_monthly_investment_income", 0):,}'
+                'formula': 'Total_SIP = SIP_Retire + SIP_Medical + SIP_Edu + SIP_Marriage + SIP_Emergency',
+                'calculation': f'Retire: Rs {calculations.get("monthly_investment_retirement", 0):,} | Med: Rs {calculations.get("monthly_investment_medical", 0):,} | Edu: Rs {calculations.get("monthly_investment_education", 0):,} | Marriage: Rs {calculations.get("monthly_investment_marriage", 0):,} | Emergency: Rs {calculations.get("monthly_investment_emergency", 0):,}',
+                'result': f'Rs {calculations.get("total_monthly_investment_income", 0):,}'
             }
         ]
     })
