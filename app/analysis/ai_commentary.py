@@ -64,8 +64,8 @@ class SystemCommentaryGenerator:
         return [
             f"<strong>Insight 1:</strong> Future medical cover requirement at retirement is Rs {medical_retirement:,}, representing the future value of current medical cover adjusted for medical inflation.",
             f"<strong>Insight 2:</strong> Projected coverage accumulation of Rs {coverage_retirement:,} leaving a gap of Rs {balance_needed:,}.",
-            f"<strong>Insight 3:</strong> The medical inflation assumption of {medical_inflation}% annually is incorporated into healthcare cost projections.",
-            f"<strong>Insight 4:</strong> Net medical corpus required at life expectancy age is Rs {balance_needed_life_expectancy:,}.",
+            f"<strong>Insight 3:</strong> The medical inflation assumption of {medical_inflation}% annually is incorporated into medical coverage projections.",
+            f"<strong>Insight 4:</strong> Net medical coverage required at life expectancy age is Rs {balance_needed_life_expectancy:,}.",
         ]
 
     @staticmethod

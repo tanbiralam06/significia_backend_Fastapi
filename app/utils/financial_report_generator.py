@@ -519,10 +519,10 @@ class FinancialReportGenerator:
         med = result.medical_data
         med_info = [
             ['Description', 'Value (Rs)'],
-            ['Medical Corpus at Retirement', format_number(med.get('medical_corpus_at_retirement'))],
+            ['Medical Coverage at Retirement', format_number(med.get('medical_corpus_at_retirement'))],
             ['Projected Coverage accumulation', format_number(med.get('total_coverage_at_retirement'))],
             ['Balance Needed at Retirement', format_number(med.get('balance_needed_at_retirement'))],
-            ['Medical Corpus at Life Expectancy', format_number(med.get('medical_corpus_at_life_expectancy'))],
+            ['Medical Coverage at Life Expectancy', format_number(med.get('medical_corpus_at_life_expectancy'))],
         ]
         t = Table(med_info, colWidths=[300, 200])
         t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.grey), ('GRID', (0,0), (-1,-1), 1, colors.black)]))
