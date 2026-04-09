@@ -27,6 +27,7 @@ try:
             self.entity_name = kwargs.pop('entity_name', "")
             self.advisor_name = kwargs.pop('advisor_name', "")
             self.ia_reg_no = kwargs.pop('ia_reg_no', "")
+            self.report_date = kwargs.pop('report_date', "")
             canvas.Canvas.__init__(self, *args, **kwargs)
             self._saved_page_states = []
 
@@ -50,13 +51,14 @@ try:
             self.drawRightString(570, 20, page_text)
             
             # Footer: Prepared by / Entity Name / Reg No (left-aligned)
-            if any([self.advisor_name, self.entity_name, self.ia_reg_no]):
+            if any([self.advisor_name, self.entity_name, self.ia_reg_no, self.report_date]):
                 self.setFont("Helvetica-Oblique", 7)
                 self.setFillColor(colors.grey)
                 footer_parts = []
                 if self.advisor_name: footer_parts.append(f"Prepared by: {self.advisor_name}")
-                if self.entity_name: footer_parts.append(f"Entity: {self.entity_name}")
-                if self.ia_reg_no: footer_parts.append(f"RIA Reg No: {self.ia_reg_no}")
+                if self.report_date: footer_parts.append(f"Report Date: {self.report_date}")
+                # if self.entity_name: footer_parts.append(f"Entity: {self.entity_name}")
+                # if self.ia_reg_no: footer_parts.append(f"RIA Reg No: {self.ia_reg_no}")
                 footer_text = " , ".join(footer_parts)
                 self.drawString(30, 20, footer_text)
             
@@ -65,6 +67,12 @@ try:
                 self.setFont("Helvetica-Bold", 8)
                 self.setFillColor(colors.HexColor('#1e293b'))
                 self.drawString(30, 820, self.entity_name.upper())
+                
+                # Add IA registration number below entity name
+                if self.ia_reg_no:
+                    self.setFont("Helvetica", 7)
+                    self.setFillColor(colors.HexColor('#64748b'))
+                    self.drawString(30, 810, f"RIA REG NO: {self.ia_reg_no.upper()}")
 
             # Header: STRICTLY CONFIDENTIAL (top-right, every page)
             self.setFont("Helvetica-Oblique", 7)
@@ -206,10 +214,23 @@ class FinancialReportGenerator:
         # Advisor Details
         advisor_name = profile.client.advisor_name if hasattr(profile, 'client') and profile.client else None
         ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
+        
+        # Robust Report Date parsing
+        raw_date = profile.created_at if hasattr(profile, 'created_at') and profile.created_at else datetime.now()
+        if isinstance(raw_date, str):
+            try:
+                # Handle ISO format strings
+                report_date = datetime.fromisoformat(raw_date.replace('Z', '+00:00'))
+            except:
+                report_date = datetime.now()
+        else:
+            report_date = raw_date
+            
+        report_date_str = report_date.strftime('%d %B, %Y')
 
         # Factory for canvas with ia_name and advisor_name
         def canvas_factory(*args, **kwargs):
-            return NumberedCanvas(*args, entity_name=ia_name, advisor_name=advisor_name, ia_reg_no=ia_reg_no, **kwargs)
+            return NumberedCanvas(*args, entity_name=ia_name, advisor_name=advisor_name, ia_reg_no=ia_reg_no, report_date=report_date_str, **kwargs)
 
         doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=50, bottomMargin=40)
         elements = []
@@ -267,7 +288,7 @@ class FinancialReportGenerator:
         details_data.append([Paragraph(f"<b>PREPARED BY:</b> {prepared_by.upper()}", detail_style)])
         if ia_reg_no:
             details_data.append([Paragraph(f"<b>RIA REGISTRATION NO:</b> {ia_reg_no.upper()}", detail_style)])
-        details_data.append([Paragraph(f"<b>REPORT DATE:</b> {datetime.now().strftime('%d %B, %Y').upper()}", detail_style)])
+        details_data.append([Paragraph(f"<b>REPORT DATE:</b> {report_date_str.upper()}", detail_style)])
             
         t_cover = Table(details_data, colWidths=[6.5*inch])
         t_cover.setStyle(TableStyle([
@@ -991,9 +1012,18 @@ class FinancialReportGenerator:
         
         # Left side: IA Name
         if ia_name:
-            htable.cell(0, 0).text = ia_name.upper()
-            htable.cell(0, 0).paragraphs[0].runs[0].font.size = Pt(8)
-            htable.cell(0, 0).paragraphs[0].runs[0].bold = True
+            ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
+            
+            p = htable.cell(0, 0).paragraphs[0]
+            p.text = ia_name.upper()
+            p.runs[0].font.size = Pt(8)
+            p.runs[0].bold = True
+            
+            if ia_reg_no:
+                r_p = htable.cell(0, 0).add_paragraph(f"RIA REG NO: {ia_reg_no.upper()}")
+                r_p.runs[0].font.size = Pt(7)
+                r_p.runs[0].font.color.rgb = RGBColor(0x64, 0x74, 0x8b)
+                r_p.runs[0].italic = True
             
         # Right side: Strictly Confidential
         htable.cell(0, 1).text = "STRICTLY CONFIDENTIAL"
@@ -1029,6 +1059,18 @@ class FinancialReportGenerator:
         prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
         ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
         
+        # Robust Report Date parsing
+        raw_date = profile.created_at if hasattr(profile, 'created_at') and profile.created_at else datetime.now()
+        if isinstance(raw_date, str):
+            try:
+                report_date = datetime.fromisoformat(raw_date.replace('Z', '+00:00'))
+            except:
+                report_date = datetime.now()
+        else:
+            report_date = raw_date
+            
+        report_date_str = report_date.strftime('%d %B, %Y')
+        
         def add_centered_detail(label, value):
             p = doc.add_paragraph()
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1043,7 +1085,7 @@ class FinancialReportGenerator:
         add_centered_detail("PREPARED BY", prepared_by)
         if ia_reg_no:
             add_centered_detail("RIA REGISTRATION NO", ia_reg_no)
-        add_centered_detail("REPORT DATE", datetime.now().strftime('%d %B, %Y'))
+        add_centered_detail("REPORT DATE", report_date_str)
 
         doc.add_page_break() 
         # 1. Client Profile
@@ -1376,7 +1418,24 @@ class FinancialReportGenerator:
         prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
         ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else 'N/A'
         
-        footer_parts = [f"Prepared by: {prepared_by}", f"Entity: {ia_name or 'N/A'}", f"RIA Reg No: {ia_reg_no}"]
+        # Robust Report Date parsing
+        raw_date = profile.created_at if hasattr(profile, 'created_at') and profile.created_at else datetime.now()
+        if isinstance(raw_date, str):
+            try:
+                report_date = datetime.fromisoformat(raw_date.replace('Z', '+00:00'))
+            except:
+                report_date = datetime.now()
+        else:
+            report_date = raw_date
+            
+        report_date_str_full = report_date.strftime('%d %B, %Y')
+        
+        footer_parts = [
+            f"Prepared by: {prepared_by}", 
+            f"Report Date: {report_date_str_full}",
+            f"Entity: {ia_name or 'N/A'}", 
+            f"RIA Reg No: {ia_reg_no}"
+        ]
         footer_text = " | ".join(footer_parts)
         
         f_run = f_p.add_run(footer_text)
