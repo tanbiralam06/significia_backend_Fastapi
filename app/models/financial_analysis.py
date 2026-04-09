@@ -59,6 +59,7 @@ class FinancialAnalysisProfile(SiloBase):
     exclude_ai: Mapped[bool] = mapped_column(Boolean, default=False)
     disclaimer_text: Mapped[Optional[str]] = mapped_column(Text)
     discussion_notes: Mapped[Optional[str]] = mapped_column(Text)
+    record_version_control_statement: Mapped[Optional[str]] = mapped_column(Text)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)

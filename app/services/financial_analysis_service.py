@@ -136,6 +136,7 @@ class FinancialAnalysisService:
             exclude_ai=analysis_in.exclude_ai,
             disclaimer_text=analysis_in.disclaimer_text,
             discussion_notes=analysis_in.discussion_notes,
+            record_version_control_statement=analysis_in.record_version_control_statement,
         )
         db.add(profile)
         db.flush()  # Get profile.id before creating result

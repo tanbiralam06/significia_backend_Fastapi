@@ -149,6 +149,7 @@ class FinancialAnalysisCreate(BaseModel):
     exclude_ai: bool = False
     disclaimer_text: Optional[str] = None
     discussion_notes: Optional[str] = None
+    record_version_control_statement: Optional[str] = None
 
 
 # ─── Response Schemas ───

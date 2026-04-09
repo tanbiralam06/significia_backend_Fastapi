@@ -448,6 +448,8 @@ class FinancialReportGenerator:
             ['Medical Cover', format_number(profile.insurance.get('med_cover', 0)), format_number(profile.insurance.get('med_premium', 0))],
             ['Vehicle Insurance', format_number(profile.insurance.get('veh_cover', 0)), format_number(profile.insurance.get('veh_premium', 0))],
             ['Other General Insurance', format_number(profile.insurance.get('other_cover', 0)), format_number(profile.insurance.get('other_premium', 0))],
+            ['Health Insurance Bonus Year', str(int(profile.medical_bonus_years)) if profile.medical_bonus_years else "0", "-"],
+            ['Avg Health Insurance Bonus %', f"{int(profile.medical_bonus_percentage)}%" if profile.medical_bonus_percentage else "0%", "-"],
         ]
         t = Table(ins_data, colWidths=[200, 150, 150])
         t.setStyle(TableStyle([
@@ -688,8 +690,14 @@ class FinancialReportGenerator:
         elements.append(Paragraph(disc, normal_style))
         elements.append(Spacer(1, 40))
 
-        # 12. Discussion Notes
-        elements.append(Paragraph('12. DISCUSSION NOTES', section_style))
+        # 12. Record & Version Control Statement
+        if hasattr(profile, 'record_version_control_statement') and profile.record_version_control_statement:
+            elements.append(Paragraph('12. RECORD & VERSION CONTROL STATEMENT', section_style))
+            elements.append(Paragraph(profile.record_version_control_statement, normal_style))
+            elements.append(Spacer(1, 20))
+
+        # 13. Discussion Notes
+        elements.append(Paragraph('13. DISCUSSION NOTES', section_style))
         if profile.discussion_notes:
             elements.append(Paragraph(profile.discussion_notes, normal_style))
         else:
@@ -697,9 +705,9 @@ class FinancialReportGenerator:
             elements.append(Spacer(1, 200))
         elements.append(Spacer(1, 40))
 
-        # 13. Signatures (Very last)
+        # 14. Signatures (Very last)
         elements.append(Spacer(1, 10))
-        elements.append(Paragraph('13. SIGNATURES', section_style))
+        elements.append(Paragraph('14. SIGNATURES', section_style))
         elements.append(Spacer(1, 40))
         sig_data = [
             ["__________________________", "__________________________"],
@@ -1116,7 +1124,9 @@ class FinancialReportGenerator:
             ["Life", format_currency(ins.get('life_cover')), format_currency(ins.get('life_premium'))],
             ["Medical", format_currency(ins.get('med_cover')), format_currency(ins.get('med_premium'))],
             ["Vehicle", format_currency(ins.get('veh_cover')), format_currency(ins.get('veh_premium'))],
-            ["Other General", format_currency(ins.get('other_cover')), format_currency(ins.get('other_premium'))]
+            ["Other General", format_currency(ins.get('other_cover')), format_currency(ins.get('other_premium'))],
+            ["Health Insurance Bonus Year", str(int(profile.medical_bonus_years)) if profile.medical_bonus_years else "0", "-"],
+            ["Avg Health Insurance Bonus %", f"{int(profile.medical_bonus_percentage)}%" if profile.medical_bonus_percentage else "0%", "-"]
         ])
 
         # 2. Financial Assumptions
@@ -1322,8 +1332,14 @@ class FinancialReportGenerator:
         doc.add_paragraph(disc)
         doc.add_paragraph()
         
-        # 15. Discussion Notes
-        doc.add_heading("15. DISCUSSION NOTES", level=1)
+        # 15. Record & Version Control Statement
+        if hasattr(profile, 'record_version_control_statement') and profile.record_version_control_statement:
+            doc.add_heading("15. RECORD & VERSION CONTROL STATEMENT", level=1)
+            doc.add_paragraph(profile.record_version_control_statement)
+            doc.add_paragraph()
+
+        # 16. Discussion Notes
+        doc.add_heading("16. DISCUSSION NOTES", level=1)
         if profile.discussion_notes:
             doc.add_paragraph(profile.discussion_notes)
         else:
@@ -1331,8 +1347,8 @@ class FinancialReportGenerator:
         
         doc.add_paragraph()
         
-        # 16. Signatures
-        doc.add_heading("16. Signatures", level=1)
+        # 17. Signatures
+        doc.add_heading("17. Signatures", level=1)
         doc.add_paragraph()
         doc.add_paragraph("__________________________            __________________________")
         doc.add_paragraph("Signature of Client                   Signature of IA")

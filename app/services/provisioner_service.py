@@ -36,9 +36,21 @@ class ProvisionerService:
     def _patch_database(engine: PostgreSQLConnector):
         """
         Add any missing columns to existing tables for backward compatibility.
-        Note: Currently all legacy patches are merged into _create_master_tables.
         """
-        pass
+        # Add record_version_control_statement to financial_analysis_profiles
+        patch_fa_profiles = """
+        DO $$ 
+        BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                           WHERE table_schema='significia_core' 
+                           AND table_name='financial_analysis_profiles' 
+                           AND column_name='record_version_control_statement') THEN
+                ALTER TABLE significia_core.financial_analysis_profiles 
+                ADD COLUMN record_version_control_statement TEXT;
+            END IF;
+        END $$;
+        """
+        engine.execute_query(patch_fa_profiles)
 
     @staticmethod
     def _create_master_tables(engine: PostgreSQLConnector):
@@ -282,6 +294,7 @@ class ProvisionerService:
             exclude_ai BOOLEAN DEFAULT FALSE,
             disclaimer_text TEXT,
             discussion_notes TEXT,
+            record_version_control_statement TEXT,
 
             created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
