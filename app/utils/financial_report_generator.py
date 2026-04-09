@@ -545,6 +545,7 @@ class FinancialReportGenerator:
             ['Retirement Corpus Needed', format_number(ret.get('retirement_corpus_at_retirement'))],
             ['Future Value of Existing Savings', format_number(ret.get('future_value_existing_savings'))],
             ['Net Corpus Needed', format_number(ret.get('net_retirement_corpus_needed'))],
+            ['Monthly Contribution Required', format_number(ret.get('monthly_investment_retirement'))],
             # ['Retirement Readiness', f"{ret.get('retirement_readiness', 0)}%"],
         ]
         t = Table(ret_info, colWidths=[300, 200])
@@ -1170,6 +1171,7 @@ class FinancialReportGenerator:
             ["Retirement Corpus Needed", format_number(ret.get('retirement_corpus_at_retirement'))],
             ["Future Value of Existing Savings", format_number(ret.get('future_value_existing_savings'))],
             ["Net Corpus Needed", format_number(ret.get('net_retirement_corpus_needed'))],
+            ["Monthly Contribution Required", format_number(ret.get('monthly_investment_retirement'))],
         ]
         add_table("8. Retirement Analysis", ret_info)
 
