@@ -56,7 +56,7 @@ try:
                 footer_parts = []
                 if self.advisor_name: footer_parts.append(f"Prepared by: {self.advisor_name}")
                 if self.entity_name: footer_parts.append(f"Entity: {self.entity_name}")
-                if self.ia_reg_no: footer_parts.append(f"Reg No: {self.ia_reg_no}")
+                if self.ia_reg_no: footer_parts.append(f"RIA Reg No: {self.ia_reg_no}")
                 footer_text = " , ".join(footer_parts)
                 self.drawString(30, 20, footer_text)
             
@@ -203,10 +203,12 @@ class FinancialReportGenerator:
 
         buffer = io.BytesIO()
         
+        # Advisor Details
+        advisor_name = profile.client.advisor_name if hasattr(profile, 'client') and profile.client else None
+        ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
+
         # Factory for canvas with ia_name and advisor_name
         def canvas_factory(*args, **kwargs):
-            advisor_name = profile.client.advisor_name if hasattr(profile, 'client') and profile.client else None
-            ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
             return NumberedCanvas(*args, entity_name=ia_name, advisor_name=advisor_name, ia_reg_no=ia_reg_no, **kwargs)
 
         doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=50, bottomMargin=40)
@@ -263,6 +265,8 @@ class FinancialReportGenerator:
             details_data.append([Paragraph(f"<b>CLIENT CODE:</b> {profile.client.client_code.upper()}", detail_style)])
             
         details_data.append([Paragraph(f"<b>PREPARED BY:</b> {prepared_by.upper()}", detail_style)])
+        if ia_reg_no:
+            details_data.append([Paragraph(f"<b>RIA REGISTRATION NO:</b> {ia_reg_no.upper()}", detail_style)])
         details_data.append([Paragraph(f"<b>REPORT DATE:</b> {datetime.now().strftime('%d %B, %Y').upper()}", detail_style)])
             
         t_cover = Table(details_data, colWidths=[6.5*inch])
@@ -1023,6 +1027,7 @@ class FinancialReportGenerator:
         
         # Details
         prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
+        ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else None
         
         def add_centered_detail(label, value):
             p = doc.add_paragraph()
@@ -1036,6 +1041,8 @@ class FinancialReportGenerator:
             add_centered_detail("CLIENT CODE", profile.client.client_code)
         
         add_centered_detail("PREPARED BY", prepared_by)
+        if ia_reg_no:
+            add_centered_detail("RIA REGISTRATION NO", ia_reg_no)
         add_centered_detail("REPORT DATE", datetime.now().strftime('%d %B, %Y'))
 
         doc.add_page_break() 
@@ -1369,7 +1376,7 @@ class FinancialReportGenerator:
         prepared_by = ia_name or (profile.client.advisor_name if hasattr(profile, 'client') and profile.client else 'INVESTMENT ADVISOR')
         ia_reg_no = profile.client.advisor_registration_number if hasattr(profile, 'client') and profile.client else 'N/A'
         
-        footer_parts = [f"Prepared by: {prepared_by}", f"Entity: {ia_name or 'N/A'}", f"Reg No: {ia_reg_no}"]
+        footer_parts = [f"Prepared by: {prepared_by}", f"Entity: {ia_name or 'N/A'}", f"RIA Reg No: {ia_reg_no}"]
         footer_text = " | ".join(footer_parts)
         
         f_run = f_p.add_run(footer_text)
