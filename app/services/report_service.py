@@ -1448,7 +1448,7 @@ class ReportService:
             for q_id, q_data in effective_q_data.items():
                 s_info = q_scores.get(q_id, {})
                 score_text = f" (Score: {s_info.get('score', 0)}/{s_info.get('max', 0)})"
-                story.append(Paragraph(f"<b>{q_id.upper()}. {q_data.get('title', 'Question')}{score_text}</b>", normal_style))
+                story.append(Paragraph(f"<b>{q_id.upper()}. {escape(str(q_data.get('title', 'Question')))}{score_text}</b>", normal_style))
                 story.append(safe_p(q_data.get('question', ''), normal_style))
                 
                 if q_id == 'q2':
@@ -1460,7 +1460,7 @@ class ReportService:
                         ans_code = q2_answers.get(f_code, "-")
                         ans_text = q_data.get('options', {}).get(ans_code, ans_code)
                         f_score = q2_scores.get(f_code, {}).get('score', 0)
-                        table_data.append([f_name, safe_p(f"<b>{ans_text}</b>", bold_style), str(f_score)])
+                        table_data.append([escape(str(f_name)), Paragraph(f"<b>{escape(str(ans_text))}</b>", bold_style), str(f_score)])
                     
                     q2_table = Table(table_data, colWidths=[3*inch, 2*inch, 1*inch])
                     q2_table.setStyle(TableStyle([
@@ -1504,7 +1504,8 @@ class ReportService:
                 # but we'll use 0 if not found
                 score_text = f" (Score: {score_val})"
                 
-                story.append(Paragraph(f"<b>{idx+1}. {q_data.get('title') or q_data.get('text') or 'Question'}{score_text}</b>", normal_style))
+                title_text = q_data.get('title') or q_data.get('text') or 'Question'
+                story.append(Paragraph(f"<b>{idx+1}. {escape(str(title_text))}{score_text}</b>", normal_style))
                 if q_data.get('question'):
                     story.append(safe_p(q_data['question'], normal_style))
                 
@@ -1518,7 +1519,7 @@ class ReportService:
                     
                     prefix = f"<b>[✓]</b> " if is_selected else "[  ] "
                     text_color = "#006400" if is_selected else "#000000"
-                    options_str += f"<font color='{text_color}'>{prefix}{opt_text}</font><br/>"
+                    options_str += f"<font color='{text_color}'>{prefix}{escape(str(opt_text))}</font><br/>"
                 
                 if options_str:
                     story.append(Paragraph(options_str, ParagraphStyle('Options', parent=normal_style, leftIndent=20, leading=12)))
