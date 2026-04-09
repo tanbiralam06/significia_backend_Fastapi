@@ -76,7 +76,6 @@ class SystemCommentaryGenerator:
             f"<strong>Insight 1:</strong> Retirement corpus requirement of Rs {corpus_retirement:,} assumes lifestyle maintenance at {sol_ret}% of pre-retirement expenses.",
             f"<strong>Insight 2:</strong> Monthly contribution requirement of Rs {monthly_investment:,} ",
             f"<strong>Insight 3:</strong> With {years_remaining} years remaining until retirement, the compounding period is factored into calculations.",
-            f"<strong>Insight 4:</strong> Retirement readiness score of {readiness_score}% indicates the current funding status relative to your target corpus.",
         ]
 
     @staticmethod
