@@ -5,7 +5,7 @@ from app.api.v1 import (
     client_routes, ia_master_routes,
     financial_analysis_routes, risk_profile_routes, asset_allocation_routes,
     bridge_routes, ia_auth_routes, billing_routes, public_routes, tenant_routes,
-    team_routes
+    team_routes, email_routes
 )
 
 api_router = APIRouter()
@@ -35,6 +35,7 @@ api_router.include_router(ia_master_routes.router, prefix="/ia-master", tags=["M
 api_router.include_router(financial_analysis_routes.router, prefix="/financial-analysis", tags=["Financial Analysis"], dependencies=[Depends(require_profile_completed)])
 api_router.include_router(risk_profile_routes.router, prefix="/risk-profile", tags=["Risk Profile"], dependencies=[Depends(require_profile_completed)])
 api_router.include_router(asset_allocation_routes.router, prefix="/asset-allocation", tags=["Asset Allocation"], dependencies=[Depends(require_profile_completed)])
+api_router.include_router(email_routes.router, prefix="/email", tags=["Email Management"], dependencies=[Depends(require_profile_completed)])
 
 @api_router.get("/health", status_code=200)
 def health_check() -> dict:
