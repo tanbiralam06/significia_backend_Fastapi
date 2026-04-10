@@ -20,6 +20,7 @@ from app.services.bridge_client import BridgeClient
 from app.analysis.financial_calculator import FinancialCalculator
 from app.analysis.ai_commentary import SystemCommentaryGenerator
 from app.utils.financial_report_generator import FinancialReportGenerator
+from app.utils.email_templates import get_financial_analysis_template, get_financial_analysis_subject
 
 from app.schemas.financial_analysis_schema import (
     FinancialAnalysisCreate,
@@ -641,13 +642,20 @@ async def email_analysis_report(
     # 4. Request Bridge to send email with attachment
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}.pdf"
     
-    # We'll use a simple fallback body if no template is configured
-    # In a real scenario, we'd fetch the 'REPORT_DELIVERY' template from Bridge
+    # Prepare context for centralized professional template
+    template_context = {
+        "client_name": client_name,
+        "ia_name": ia_name or "Your Financial Advisor",
+        "ia_reg_no": ia_master.get("registration_no", "") if ia_master else "",
+        "ia_firm_name": ia_master.get("entity_name", "") if ia_master else "",
+        "ia_contact_details": f"{ia_master.get('registered_contact_number', '')} | {ia_email or ''}" if ia_master else ia_email or ""
+    }
+
     email_payload = {
         "recipient": client_email,
         "recipient_name": client_name,
-        "subject": f"Financial Analysis Report — {client_name}",
-        "body": f"<p>Dear {client_name},</p><p>Please find attached your Financial Analysis Report as discussed.</p><p>Regards,<br>{ia_name or 'Your Financial Advisor'}</p>",
+        "subject": get_financial_analysis_subject(client_name),
+        "body": get_financial_analysis_template(template_context),
         "context_type": "profile",
         "context_id": profile_data.get("id")
     }
