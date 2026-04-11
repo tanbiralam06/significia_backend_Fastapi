@@ -77,7 +77,7 @@ async def record_report_audit(
             "report_hash": data_hash,
             "metadata": {"action": action, "source": "backend_proxy"}
         })
-        return get_safe(resp, "id")
+        return get_safe(resp, "short_id") or get_safe(resp, "id")
     except Exception as e:
         logger.warning(f"Failed to record report history: {e}")
         return None
@@ -620,7 +620,8 @@ async def download_analysis_pdf_bridge(
         ia_logo_path=resolved_logo_path or ia_logo_path,
         ia_name=ia_name,
         report_id=audit_id,
-        report_hash=data_hash
+        report_hash=data_hash,
+        report_version=profile_data.get("version_number", 1)
     )
 
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
@@ -718,7 +719,8 @@ async def email_analysis_report(
         ia_logo_path=resolved_logo_path or ia_logo_path,
         ia_name=ia_name,
         report_id=audit_id,
-        report_hash=data_hash
+        report_hash=data_hash,
+        report_version=get_safe(profile_data, "version_number", 1)
     )
 
     # 4. Request Bridge to send email with attachment
@@ -828,7 +830,8 @@ async def download_analysis_word_bridge(
         ia_logo_path=resolved_logo_path or ia_logo_path,
         ia_name=ia_name,
         report_id=audit_id,
-        report_hash=data_hash
+        report_hash=data_hash,
+        report_version=profile_data.get("version_number", 1)
     )
 
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.docx"

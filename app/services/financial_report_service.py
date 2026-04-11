@@ -81,7 +81,7 @@ async def record_report_audit(
             payload["id"] = existing_id
             
         resp = await bridge.post("/reports/history", data=payload)
-        return get_safe(resp, "id")
+        return get_safe(resp, "short_id") or get_safe(resp, "id")
     except Exception as e:
         logger.warning(f"Failed to record report history: {e}")
         return None
@@ -157,7 +157,8 @@ class FinancialReportService:
                 ia_logo_path=resolved_logo_path or ia_logo_path,
                 ia_name=ia_name,
                 report_id="RE-DELIVERY", # Placeholder
-                report_hash=data_hash
+                report_hash=data_hash,
+                report_version=get_safe(profile_data, "version_number", 1)
             )
             ext = "docx"
             mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -169,7 +170,8 @@ class FinancialReportService:
                 ia_logo_path=resolved_logo_path or ia_logo_path,
                 ia_name=ia_name,
                 report_id="RE-DELIVERY",
-                report_hash=data_hash
+                report_hash=data_hash,
+                report_version=get_safe(profile_data, "version_number", 1)
             )
             ext = "pdf"
             mime = "application/pdf"

@@ -30,6 +30,7 @@ try:
             self.report_date = kwargs.pop('report_date', "")
             self.report_id = kwargs.pop('report_id', None)
             self.report_hash = kwargs.pop('report_hash', None)
+            self.report_version = kwargs.pop('report_version', None)
             canvas.Canvas.__init__(self, *args, **kwargs)
             self._saved_page_states = []
 
@@ -63,8 +64,6 @@ try:
                 # Add Audit Info if available
                 if self.report_id:
                     audit_text = f"Audit ID: {self.report_id}"
-                    if self.report_hash:
-                        audit_text += f" | Hash: {self.report_hash[:16]}..."
                     footer_parts.append(audit_text)
 
                 footer_text = "  |  ".join(footer_parts)
@@ -85,7 +84,10 @@ try:
             # Header: STRICTLY CONFIDENTIAL (top-right, every page)
             self.setFont("Helvetica-Oblique", 7)
             self.setFillColor(colors.grey)
-            self.drawRightString(570, 820, "STRICTLY CONFIDENTIAL")
+            header_right = "STRICTLY CONFIDENTIAL"
+            if self.report_version:
+                header_right = f"REPORT VERSION: V{self.report_version}  |  {header_right}"
+            self.drawRightString(570, 820, header_right)
             self.setFillColor(colors.black)
 
 except ImportError:
@@ -213,7 +215,8 @@ class FinancialReportGenerator:
         ia_logo_path: Optional[str] = None,
         ia_name: Optional[str] = None,
         report_id: Optional[str] = None,
-        report_hash: Optional[str] = None
+        report_hash: Optional[str] = None,
+        report_version: Optional[int] = None
     ) -> io.BytesIO:
         """Generate a professionally formatted PDF Financial Analysis report."""
         if not PDF_AVAILABLE:
@@ -248,6 +251,7 @@ class FinancialReportGenerator:
                 report_date=report_date_str, 
                 report_id=report_id,
                 report_hash=report_hash,
+                report_version=report_version,
                 **kwargs
             )
 
@@ -1018,7 +1022,8 @@ class FinancialReportGenerator:
         ia_logo_path: Optional[str] = None,
         ia_name: Optional[str] = None,
         report_id: Optional[str] = None,
-        report_hash: Optional[str] = None
+        report_hash: Optional[str] = None,
+        report_version: Optional[int] = None
     ) -> io.BytesIO:
         """Generate a professionally formatted Word Financial Analysis report."""
         if not WORD_AVAILABLE:
@@ -1047,7 +1052,11 @@ class FinancialReportGenerator:
                 r_p.runs[0].italic = True
             
         # Right side: Strictly Confidential
-        htable.cell(0, 1).text = "STRICTLY CONFIDENTIAL"
+        header_right = "STRICTLY CONFIDENTIAL"
+        if report_version:
+            header_right = f"REPORT VERSION: V{report_version}  |  {header_right}"
+            
+        htable.cell(0, 1).text = header_right
         htable.cell(0, 1).paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
         htable.cell(0, 1).paragraphs[0].runs[0].font.size = Pt(8)
         htable.cell(0, 1).paragraphs[0].runs[0].italic = True
@@ -1459,8 +1468,6 @@ class FinancialReportGenerator:
         
         if report_id:
             audit_text = f"Audit ID: {report_id}"
-            if report_hash:
-                audit_text += f" (Hash: {report_hash[:16]}...)"
             footer_parts.append(audit_text)
 
         footer_text = " | ".join(footer_parts)
