@@ -99,9 +99,13 @@ class EmailLog(SiloBase):
     error_details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
+    # Sender (Audit)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+
     # Context (what triggered this email)
     context_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # e.g., "financial_report", "risk_report"
     context_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)  # e.g., report ID
+    trigger_type: Mapped[str] = mapped_column(String(20), default="SYSTEM", server_default="SYSTEM")
 
     # Timestamps
     sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

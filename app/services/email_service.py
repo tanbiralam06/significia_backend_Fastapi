@@ -414,12 +414,14 @@ class EmailService:
         context_type: Optional[str] = None,
         context_id: Optional[str] = None,
         recipient_name: Optional[str] = None,
+        user_id: Optional[uuid.UUID] = None,
     ) -> dict:
         """
         Send an email using the tenant's SMTP settings.
         
         Args:
             attachments: List of (filename, file_bytes, content_type) tuples
+            user_id: ID of the user triggering the email
         
         Returns:
             dict with status and log_id
@@ -438,6 +440,8 @@ class EmailService:
             status="PENDING",
             context_type=context_type,
             context_id=context_id,
+            user_id=user_id,
+            trigger_type="MANUAL" if user_id else "SYSTEM",
         )
         db.add(log)
         db.commit()
@@ -505,27 +509,56 @@ class EmailService:
 
     @staticmethod
     def get_logs(db: Session, skip: int = 0, limit: int = 50) -> dict:
-        """Fetch email delivery logs with pagination."""
+        """Fetch email delivery logs with rich metadata for auditing."""
+        from sqlalchemy import text, func
+
+        # Using raw SQL to handle potential cross-schema joins safely
+        # Note: 'public' is used for users, current search_path for everything else
         total = db.query(EmailLog).count()
-        logs = db.query(EmailLog).order_by(EmailLog.created_at.desc()).offset(skip).limit(limit).all()
+        
+        result = db.execute(text("""
+            SELECT el.*, 
+                   u.email_normalized as sender_name,
+                   et.template_name,
+                   COALESCE(rh.version_number, fap.version_number) as report_version
+            FROM email_logs el
+            LEFT JOIN public.users u ON el.user_id = u.id
+            LEFT JOIN email_templates et ON el.template_id = et.id
+            LEFT JOIN report_history rh ON (
+                UPPER(TRIM(el.context_type)) LIKE 'REPORT%' 
+                AND LOWER(TRIM(el.context_id)) = LOWER(rh.id::text)
+            )
+            LEFT JOIN financial_analysis_profiles fap ON (
+                LOWER(TRIM(el.context_type)) = 'profile'
+                AND LOWER(TRIM(el.context_id)) = LOWER(fap.id::text)
+            )
+            ORDER BY el.created_at DESC 
+            LIMIT :limit OFFSET :offset
+        """), {"limit": limit, "offset": skip})
+
         return {
             "total": total,
             "items": [
                 {
-                    "id": str(l.id),
-                    "recipient_email": l.recipient_email,
-                    "recipient_name": l.recipient_name,
-                    "subject": l.subject,
-                    "status": l.status,
-                    "error_details": l.error_details,
-                    "retry_count": l.retry_count,
-                    "context_type": l.context_type,
-                    "context_id": l.context_id,
-                    "attachments_info": l.attachments_info,
-                    "sent_at": str(l.sent_at) if l.sent_at else None,
-                    "created_at": str(l.created_at),
+                    "id": str(row.id),
+                    "recipient_email": row.recipient_email,
+                    "recipient_name": row.recipient_name,
+                    "subject": row.subject,
+                    "status": row.status,
+                    "error_details": row.error_details,
+                    "retry_count": row.retry_count,
+                    "context_type": row.context_type,
+                    "context_id": row.context_id,
+                    "attachments_info": row.attachments_info,
+                    "user_id": str(row.user_id) if row.user_id else None,
+                    "sender_name": row.sender_name,
+                    "template_name": row.template_name,
+                    "report_version": row.report_version,
+                    "trigger_type": row.trigger_type,
+                    "sent_at": str(row.sent_at) if row.sent_at else None,
+                    "created_at": str(row.created_at),
                 }
-                for l in logs
+                for row in result
             ],
         }
 
