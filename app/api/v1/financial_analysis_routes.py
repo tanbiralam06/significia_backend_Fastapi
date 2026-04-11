@@ -12,6 +12,8 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+import json
+import hashlib
 from types import SimpleNamespace
 
 from app.api.deps import get_bridge_client, get_db
@@ -31,6 +33,54 @@ from app.schemas.financial_analysis_schema import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# ════════════════════════════════════════════════════════════════════
+#  REPORT HISTORY & TRANSPARENCY HELPERS
+# ════════════════════════════════════════════════════════════════════
+
+def get_safe(obj, key, default=None):
+    """Safely get a value from either a dictionary or a SimpleNamespace."""
+    if obj is None:
+        return default
+    if hasattr(obj, "get"):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+def compute_data_fingerprint(profile_data, result_data) -> str:
+    """Generate a SHA-256 fingerprint of the report data."""
+    # Create a stable, sorted representation of the data
+    payload = {
+        "profile": profile_data,
+        "result": result_data,
+        "version": get_safe(profile_data, "version_number", 1)
+    }
+    encoded = json.dumps(payload, sort_keys=True, default=str).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
+
+async def record_report_audit(
+    bridge: BridgeClient,
+    client_id: str,
+    profile_id: str,
+    report_type: str,
+    version_number: int,
+    data_hash: str,
+    action: str = "GENERATED"
+) -> Optional[str]:
+    """Helper to record report generation/delivery events in the Bridge."""
+    try:
+        resp = await bridge.post("/reports/history", data={
+            "client_id": client_id,
+            "profile_id": profile_id,
+            "report_type": report_type,
+            "version_number": version_number,
+            "report_hash": data_hash,
+            "metadata": {"action": action, "source": "backend_proxy"}
+        })
+        return get_safe(resp, "id")
+    except Exception as e:
+        logger.warning(f"Failed to record report history: {e}")
+        return None
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -252,7 +302,7 @@ async def fetch_analysis_data(id: str, bridge: BridgeClient):
     try:
         result = await bridge.get(f"/financial-analysis/results/id/{id}")
         if result:
-            profile = await bridge.get(f"/financial-analysis/profiles/id/{result.get('profile_id')}")
+            profile = await bridge.get(f"/financial-analysis/profiles/id/{get_safe(result, 'profile_id')}")
             return result, profile
     except HTTPException as e:
         if e.status_code != 404:
@@ -276,7 +326,7 @@ async def fetch_analysis_data(id: str, bridge: BridgeClient):
                 raise e
 
     if profile:
-        profile_id = profile.get('id')
+        profile_id = get_safe(profile, 'id')
         try:
             results = await bridge.get(f"/financial-analysis/results/{profile_id}")
             if results and isinstance(results, list) and len(results) > 0:
@@ -549,12 +599,28 @@ async def download_analysis_pdf_bridge(
     # Inject client object into profile_obj as generator expects profile.client.advisor_name
     profile_obj.client = dict_to_obj(client)
 
+    # 1. Compute Data Fingerprint for Audit
+    data_hash = compute_data_fingerprint(profile_data, result_data)
+    
+    # 2. Record in Report History to get Audit ID
+    audit_id = await record_report_audit(
+        bridge=bridge,
+        client_id=result_data.get('client_id'),
+        profile_id=str(profile_data.get("id") or id),
+        report_type="PDF",
+        version_number=profile_data.get("version_number", 1),
+        data_hash=data_hash,
+        action="DOWNLOADED"
+    )
+
     pdf_buffer = FinancialReportGenerator.generate_pdf(
         result=result_obj,
         profile=profile_obj,
         client_name=client_name,
         ia_logo_path=resolved_logo_path or ia_logo_path,
-        ia_name=ia_name
+        ia_name=ia_name,
+        report_id=audit_id,
+        report_hash=data_hash
     )
 
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf"
@@ -596,9 +662,9 @@ async def email_analysis_report(
     if not result_data:
         raise HTTPException(400, "Calculations not performed for this version.")
 
-    client = await bridge.get(f"/clients/{result_data.get('client_id')}")
-    client_name = client.get("client_name", "Valued Client")
-    client_email = client.get("email") or profile_data.get("email")
+    client = await bridge.get(f"/clients/{get_safe(result_data, 'client_id')}")
+    client_name = get_safe(client, "client_name", "Valued Client")
+    client_email = get_safe(client, "email") or get_safe(profile_data, "email")
 
     if not client_email:
         raise HTTPException(400, "Client email not found. Please update client details first.")
@@ -609,9 +675,9 @@ async def email_analysis_report(
     try:
         ia_master = await bridge.get("/ia-master")
         if ia_master:
-            ia_logo_path = ia_master.get("ia_logo_path")
-            ia_name = ia_master.get("ia_name") or ia_master.get("entity_name")
-            ia_email = ia_master.get("registered_email_id")
+            ia_logo_path = get_safe(ia_master, "ia_logo_path")
+            ia_name = get_safe(ia_master, "ia_name") or get_safe(ia_master, "entity_name")
+            ia_email = get_safe(ia_master, "registered_email_id")
     except:
         ia_email = "Significia Advisor"
 
@@ -620,23 +686,39 @@ async def email_analysis_report(
     if ia_logo_path:
         try:
             url_resp = await bridge.get("/storage/url", params={"key": ia_logo_path})
-            if url_resp.get("url"):
-                resolved_logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+            if get_safe(url_resp, "url"):
+                resolved_logo_path = await resolve_logo_to_local_path(get_safe(url_resp, "url"), db)
         except:
             pass
 
-    # 3. Generate PDF Buffer
-    # We use dict_to_obj as the Generator expects object notation
+    # Convert dicts to objects for the generator
     result_obj = dict_to_obj(result_data)
     profile_obj = dict_to_obj(profile_data)
     profile_obj.client = dict_to_obj(client)
 
+    # 1. Compute Data Fingerprint for Audit
+    data_hash = compute_data_fingerprint(profile_data, result_data)
+    
+    # 2. Record in Report History to get Audit ID
+    audit_id = await record_report_audit(
+        bridge=bridge,
+        client_id=get_safe(result_data, 'client_id'),
+        profile_id=str(get_safe(profile_data, "id") or id),
+        report_type="financial_analysis",
+        version_number=get_safe(profile_data, "version_number", 1),
+        data_hash=data_hash,
+        action="EMAILED"
+    )
+
+    # 3. Generate PDF Buffer
     pdf_buffer = FinancialReportGenerator.generate_pdf(
         result=result_obj,
         profile=profile_obj,
         client_name=client_name,
         ia_logo_path=resolved_logo_path or ia_logo_path,
-        ia_name=ia_name
+        ia_name=ia_name,
+        report_id=audit_id,
+        report_hash=data_hash
     )
 
     # 4. Request Bridge to send email with attachment
@@ -646,9 +728,9 @@ async def email_analysis_report(
     template_context = {
         "client_name": client_name,
         "ia_name": ia_name or "Your Financial Advisor",
-        "ia_reg_no": ia_master.get("registration_no", "") if ia_master else "",
-        "ia_firm_name": ia_master.get("entity_name", "") if ia_master else "",
-        "ia_contact_details": f"{ia_master.get('registered_contact_number', '')} | {ia_email or ''}" if ia_master else ia_email or ""
+        "ia_reg_no": get_safe(ia_master, "registration_no", "") if ia_master else "",
+        "ia_firm_name": get_safe(ia_master, "entity_name", "") if ia_master else "",
+        "ia_contact_details": f"{get_safe(ia_master, 'registered_contact_number', '')} | {ia_email or ''}" if ia_master else ia_email or ""
     }
 
     email_payload = {
@@ -657,7 +739,7 @@ async def email_analysis_report(
         "subject": get_financial_analysis_subject(client_name),
         "body": get_financial_analysis_template(template_context),
         "context_type": "profile",
-        "context_id": profile_data.get("id")
+        "context_id": get_safe(profile_data, "id")
     }
 
     # Reset buffer for reading
@@ -725,12 +807,28 @@ async def download_analysis_word_bridge(
     profile_obj = dict_to_obj(profile_data)
     profile_obj.client = dict_to_obj(client)
 
+    # 1. Compute Data Fingerprint for Audit
+    data_hash = compute_data_fingerprint(profile_data, result_data)
+    
+    # 2. Record in Report History to get Audit ID
+    audit_id = await record_report_audit(
+        bridge=bridge,
+        client_id=result_data.get('client_id'),
+        profile_id=str(profile_data.get("id") or id),
+        report_type="WORD",
+        version_number=profile_data.get("version_number", 1),
+        data_hash=data_hash,
+        action="DOWNLOADED"
+    )
+
     word_buffer = FinancialReportGenerator.generate_docx(
         result=result_obj,
         profile=profile_obj,
         client_name=client_name,
         ia_logo_path=resolved_logo_path or ia_logo_path,
-        ia_name=ia_name
+        ia_name=ia_name,
+        report_id=audit_id,
+        report_hash=data_hash
     )
 
     filename = f"Financial_Analysis_{client_name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.docx"

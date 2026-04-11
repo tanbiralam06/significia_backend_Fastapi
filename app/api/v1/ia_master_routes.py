@@ -462,17 +462,51 @@ async def create_report_history(
     data: dict,
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
-    """Proxy: Record a report generation event."""
-    return await bridge.post("/sebi/report-history", data)
+    """Proxy: Record a report generation event (Unified Route)."""
+    return await bridge.post("/reports/history", data)
 
 
 @router.post("/sebi/report-history/{report_id}/deliver")
-async def mark_report_delivered(
+async def redeliver_report_history(
     report_id: str,
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db)
 ):
-    """Proxy: Mark a report as delivered to client."""
-    return await bridge.post(f"/sebi/report-history/{report_id}/deliver")
+    """
+    Stateless RE-DELIVERY of a previously recorded report.
+    Fetches history metadata from Bridge, re-generates report on-the-fly,
+    and sends via Bridge SMTP relay.
+    """
+    from app.services.financial_report_service import FinancialReportService
+    
+    # 1. Fetch the audit record from the Bridge to get profile_id and version
+    try:
+        audit_record = await bridge.get(f"/reports/history/record/{report_id}")
+    except Exception as e:
+        logger.error(f"Failed to fetch audit record for re-delivery: {e}")
+        raise HTTPException(404, "Report history record not found on Bridge")
+
+    # 2. Trigger re-generation and delivery
+    result = await FinancialReportService.redeliver_report_via_bridge(
+        bridge=bridge,
+        db=db,
+        audit_record=audit_record
+    )
+    
+    # Safely check for success/message as result might be a SimpleNamespace
+    success = False
+    message = None
+    if hasattr(result, "get"):
+        success = result.get("success", False)
+        message = result.get("message")
+    else:
+        success = getattr(result, "success", False)
+        message = getattr(result, "message", None)
+
+    if not success and message:
+        raise HTTPException(500, f"Re-delivery failed: {message}")
+        
+    return result
 
 
 @router.get("/sebi/ia-master/change-summary")
