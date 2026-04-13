@@ -59,13 +59,12 @@ async def enrich_rectifications_with_names(rectifications: List[dict], db: Sessi
         if not rid:
             r["requested_by_name"] = "Internal Process"
         else:
-            # Prefer Bridge name if it's already present and not a generic placeholder
+            uid = uuid.UUID(str(rid))
+            user_info = user_map.get(uid)
+            
+            # Name Logic: Prefer Bridge name if valid
             bridge_name = r.get("requested_by_name")
-            if bridge_name and bridge_name not in ["System/Legacy", "admin", "admin@significia.com"]:
-                pass # Use existing
-            else:
-                uid = uuid.UUID(str(rid))
-                user_info = user_map.get(uid)
+            if not bridge_name or bridge_name in ["System/Legacy", "admin", "admin@significia.com"]:
                 if user_info:
                     name = profile_map.get(uid)
                     if not name and user_info["role"] == "IA":
@@ -73,18 +72,20 @@ async def enrich_rectifications_with_names(rectifications: List[dict], db: Sessi
                     if not name:
                         name = user_info["email"].split("@")[0]
                     r["requested_by_name"] = name
-                    # Also ensure role is set if missing
-                    if not r.get("requested_by_role"):
-                        r["requested_by_role"] = user_info["role"]
+            
+            # Role Logic: Always attach if we have user info and it's missing
+            if user_info and not r.get("requested_by_role"):
+                r["requested_by_role"] = user_info["role"]
 
         # 2. Handle Approved By
         aid = r.get("approved_by_id")
         if aid:
-            # Same logic for approval
+            uid = uuid.UUID(str(aid))
+            user_info = user_map.get(uid)
+            
+            # Name Logic
             bridge_approved_name = r.get("approved_by_name")
             if not bridge_approved_name or bridge_approved_name in ["admin"]:
-                uid = uuid.UUID(str(aid))
-                user_info = user_map.get(uid)
                 if user_info:
                     name = profile_map.get(uid)
                     if not name and user_info["role"] == "IA":
@@ -92,8 +93,10 @@ async def enrich_rectifications_with_names(rectifications: List[dict], db: Sessi
                     if not name:
                         name = user_info["email"].split("@")[0]
                     r["approved_by_name"] = name
-                    if not r.get("approved_by_role"):
-                        r["approved_by_role"] = user_info["role"]
+            
+            # Role Logic
+            if user_info and not r.get("approved_by_role"):
+                r["approved_by_role"] = user_info["role"]
             
     return rectifications
 

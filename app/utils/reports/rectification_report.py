@@ -97,7 +97,9 @@ class RectificationPDFGenerator:
         section_title(2, "Request Details")
         start_y = pdf.get_y()
         requested_name = rectification.get("requested_by_name", "Staff / IA Employee")
-        draw_field("Requested By", requested_name, 0)
+        requested_role = rectification.get("requested_by_role")
+        display_requested = f"{requested_name} ({requested_role.upper()})" if requested_role else requested_name
+        draw_field("Requested By", display_requested, 0)
         
         created_at_raw = rectification.get("created_at", "")
         formatted_ts = str(created_at_raw)
