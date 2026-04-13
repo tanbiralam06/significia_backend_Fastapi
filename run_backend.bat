@@ -17,7 +17,7 @@ if not exist "venv" (
 
 REM Run backend on port 8001 (standard for Significia local dev)
 echo 🔧 Starting Uvicorn on 8001...
-venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --reload-dir app
 
 echo.
 echo 👋 Backend server stopped.

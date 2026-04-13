@@ -5,10 +5,13 @@ from app.api.v1 import (
     client_routes, ia_master_routes,
     financial_analysis_routes, risk_profile_routes, asset_allocation_routes,
     bridge_routes, ia_auth_routes, billing_routes, public_routes, tenant_routes,
-    team_routes, email_routes
+    team_routes, email_routes, rectification_routes
 )
 
 api_router = APIRouter()
+
+# ── Data Rectification (E-Serial No Workflow) ────────────────────────
+api_router.include_router(rectification_routes.router, prefix="/data-rectification", tags=["Data Rectification"])
 
 # ── Public Routes (Discovery) ───────────────────────────────────────
 api_router.include_router(public_routes.router, prefix="/public", tags=["Public Branding"])

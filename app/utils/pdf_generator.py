@@ -406,3 +406,4 @@ class ClientPDFGenerator:
             alternate = not alternate
             
         return bytes(pdf.output())
+        

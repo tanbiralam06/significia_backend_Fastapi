@@ -91,11 +91,25 @@ class BridgeClient:
                 response = await client.get(url, headers=self._merge_headers(headers), params=params)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
-                logger.error(f"[Bridge TIMEOUT] tenant={self.tenant_name} path={path}")
-                raise HTTPException(503, "Bridge is not responding. Please try again later.")
+                raise HTTPException(503, "Bridge is not responding.")
             except httpx.ConnectError:
-                logger.error(f"[Bridge OFFLINE] tenant={self.tenant_name} path={path}")
-                raise HTTPException(503, "Bridge is offline. Please contact your administrator.")
+                raise HTTPException(503, "Bridge is offline.")
+
+    async def get_raw(self, path: str, params: Optional[Dict] = None, headers: Optional[Dict] = None) -> httpx.Response:
+        """Fetch raw response (for binary data/files) from the Bridge."""
+        url = f"{self.base_url}{path}"
+        logger.info(f"[Bridge GET_RAW] tenant={self.tenant_name} path={path}")
+
+        async with httpx.AsyncClient(timeout=BRIDGE_TIMEOUT_SECONDS) as client:
+            try:
+                response = await client.get(url, headers=self._merge_headers(headers), params=params)
+                if response.status_code >= 400:
+                    return self._handle_response(response, path)
+                return response
+            except httpx.ConnectTimeout:
+                raise HTTPException(503, "Bridge is not responding.")
+            except httpx.ConnectError:
+                raise HTTPException(503, "Bridge is offline.")
 
     async def post(self, path: str, data: Any = None, files: Optional[Dict] = None, headers: Optional[Dict] = None) -> Any:
         """Send a POST request to the Bridge. Supports JSON or Multipart File uploads."""
@@ -172,6 +186,7 @@ class BridgeClient:
         file_bytes: bytes, 
         filename: str, 
         content_type: str = "application/octet-stream",
+        data: Optional[Dict] = None,
         headers: Optional[Dict] = None
     ) -> Any:
         """Upload a single file to the Bridge."""
@@ -181,7 +196,7 @@ class BridgeClient:
         async with httpx.AsyncClient(timeout=60) as client:
             try:
                 files = {"file": (filename, file_bytes, content_type)}
-                response = await client.post(url, headers=self._merge_headers(headers, skip_content_type=True), files=files)
+                response = await client.post(url, headers=self._merge_headers(headers, skip_content_type=True), data=data, files=files)
                 return self._handle_response(response, path)
             except httpx.ConnectTimeout:
                 raise HTTPException(503, "Bridge upload timed out. Please try again.")
