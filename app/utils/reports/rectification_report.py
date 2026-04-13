@@ -76,8 +76,11 @@ class RectificationPDFGenerator:
         pdf.ln(5)
         
         start_y = pdf.get_y()
-        draw_field("Current Version", f"v{rectification.get('current_version')}", 0)
-        draw_field("Edit Serial No.", rectification.get("serial_no"), col_w)
+        if rectification.get("module") != "CLIENT":
+            draw_field("Current Version", f"v{rectification.get('current_version')}", 0)
+            draw_field("Edit Serial No.", rectification.get("serial_no"), col_w)
+        else:
+            draw_field("Edit Serial No.", rectification.get("serial_no"), 0)
         pdf.ln(12)
         
         # Initiation Reason (New)
