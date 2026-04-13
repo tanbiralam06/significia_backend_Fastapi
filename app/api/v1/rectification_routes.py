@@ -19,15 +19,18 @@ from app.utils.reports.rectification_report import RectificationPDFGenerator
 router = APIRouter()
 
 async def enrich_rectifications_with_names(rectifications: List[dict], db: Session) -> List[dict]:
-    """Helper to attach requested_by_name to rectification dicts."""
+    """Helper to attach names and roles to rectification dicts, prioritizing Bridge data."""
     user_ids = []
     for r in rectifications:
-        rid = r.get("requested_by_id")
-        if rid:
-            try:
-                user_ids.append(uuid.UUID(str(rid)))
-            except (ValueError, TypeError):
-                continue
+        for key in ["requested_by_id", "approved_by_id"]:
+            rid = r.get(key)
+            if rid:
+                try:
+                    uid = uuid.UUID(str(rid))
+                    if uid not in user_ids:
+                        user_ids.append(uid)
+                except (ValueError, TypeError):
+                    continue
                 
     if not user_ids:
         return rectifications
@@ -51,27 +54,46 @@ async def enrich_rectifications_with_names(rectifications: List[dict], db: Sessi
         ia_map = {row.tenant_id: row.name_of_ia for row in ia_data}
     
     for r in rectifications:
+        # 1. Handle Requested By
         rid = r.get("requested_by_id")
         if not rid:
             r["requested_by_name"] = "Internal Process"
-            continue
-            
-        uid = uuid.UUID(str(rid))
-        user_info = user_map.get(uid)
-        
-        if not user_info:
-            r["requested_by_name"] = f"Staff ({str(uid)[:8]})"
-            continue
-            
-        # Preference: 1. Staff Profile Name, 2. IA Master Name (if IA), 3. Email
-        name = profile_map.get(uid)
-        if not name and user_info["role"] == "IA":
-            name = ia_map.get(user_info["tenant_id"])
-            
-        if not name:
-            name = user_info["email"].split("@")[0]
-            
-        r["requested_by_name"] = name
+        else:
+            # Prefer Bridge name if it's already present and not a generic placeholder
+            bridge_name = r.get("requested_by_name")
+            if bridge_name and bridge_name not in ["System/Legacy", "admin", "admin@significia.com"]:
+                pass # Use existing
+            else:
+                uid = uuid.UUID(str(rid))
+                user_info = user_map.get(uid)
+                if user_info:
+                    name = profile_map.get(uid)
+                    if not name and user_info["role"] == "IA":
+                        name = ia_map.get(user_info["tenant_id"])
+                    if not name:
+                        name = user_info["email"].split("@")[0]
+                    r["requested_by_name"] = name
+                    # Also ensure role is set if missing
+                    if not r.get("requested_by_role"):
+                        r["requested_by_role"] = user_info["role"]
+
+        # 2. Handle Approved By
+        aid = r.get("approved_by_id")
+        if aid:
+            # Same logic for approval
+            bridge_approved_name = r.get("approved_by_name")
+            if not bridge_approved_name or bridge_approved_name in ["admin"]:
+                uid = uuid.UUID(str(aid))
+                user_info = user_map.get(uid)
+                if user_info:
+                    name = profile_map.get(uid)
+                    if not name and user_info["role"] == "IA":
+                        name = ia_map.get(user_info["tenant_id"])
+                    if not name:
+                        name = user_info["email"].split("@")[0]
+                    r["approved_by_name"] = name
+                    if not r.get("approved_by_role"):
+                        r["approved_by_role"] = user_info["role"]
             
     return rectifications
 

@@ -64,7 +64,10 @@ class RectificationResponse(BaseModel):
     status: str
     requested_by_id: Optional[uuid.UUID] = None
     requested_by_name: Optional[str] = "System/Legacy"
+    requested_by_role: Optional[str] = None
     approved_by_id: Optional[uuid.UUID] = None
+    approved_by_name: Optional[str] = None
+    approved_by_role: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
