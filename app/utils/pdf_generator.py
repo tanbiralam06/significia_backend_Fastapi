@@ -177,6 +177,9 @@ class ClientPDFGenerator:
         pdf.set_font("helvetica", "B", 10)
         pdf.set_text_color(*primary_blue)
         pdf.cell(0, 5, f"REFERENCE: {client_data.get('client_code')}", ln=True, align="L")
+        pdf.set_font("helvetica", "I", 8)
+        pdf.set_text_color(128, 128, 128)
+        pdf.cell(0, 5, "Internal system report - not for client communication", ln=True, align="L")
 
         pdf.set_font("helvetica", "I", 8)
         pdf.set_text_color(*text_muted)
@@ -213,18 +216,21 @@ class ClientPDFGenerator:
                 val1 = str(field1[1]) if str(field1[1]).strip() != "" else "N/A"
 
                 if is_full1:
-                    pdf.set_x(margin + 40)
-                    pdf.set_font("helvetica", "", 10)
-                    pdf.set_text_color(*text_black)
-                    pdf.multi_cell(0, row_h, f" {val1}", border='RBR', fill=True)
-                    end_y = pdf.get_y()
-                    final_h = end_y - start_y
+                    if field1[0]:
+                        # Render label as a bold blue header for formal sections
+                        pdf.set_font("helvetica", "B", 9)
+                        pdf.set_text_color(*primary_blue)
+                        pdf.cell(0, 8, f" {field1[0].upper()}:", border='LTR', fill=True, ln=True)
+                        
+                        pdf.set_font("helvetica", "", 9)
+                        pdf.set_text_color(*text_black)
+                        # Slightly closer spacing for multi-line blocks
+                        pdf.multi_cell(0, 5, f" {val1}", border='LBR', fill=True)
+                    else:
+                        pdf.set_font("helvetica", "I", 9)
+                        pdf.set_text_color(*text_black)
+                        pdf.multi_cell(0, 5, f" {val1}", border=1, fill=True)
                     
-                    pdf.set_xy(margin, start_y)
-                    pdf.set_font("helvetica", "B", 9)
-                    pdf.set_text_color(*text_muted)
-                    pdf.cell(40, final_h, f" {field1[0]}", border='LBR', fill=True)
-                    pdf.set_y(end_y)
                     i += 1
                 elif field2:
                     pdf.set_font("helvetica", "B", 9)
@@ -296,15 +302,22 @@ class ClientPDFGenerator:
                 ("Nominee Name", client_data.get("nominee_name")),
                 ("Objectives", client_data.get("investment_objectives"), True),
             ]),
-            ("Declaration", [
+            ("Regulatory Declaration & IA Consent", [
                 ("Agreement Date", client_data.get("agreement_date")),
-                ("IA Master", client_data.get("advisor_name")),
-                ("Statement", "I hereby confirm that all details provided are accurate to the best of my knowledge. This report is generated based on client provided data and recorded information. This report is for data recording and financia analysis purpose only and does not constitute investment advice or recommendation. The client's identity has been verified via KYC documents. The report is generated for internal use and analytical purposes only. All information has been provided by the client and recorded by the Investment Advisor. The system does not independently verify such information. Client consents to use of data for financial analysis and regulatory compliance purposes.", True),
+                ("Investment Advisor", client_data.get("advisor_name")),
+                ("Compliance Declaration Statement", "I hereby confirm that all details provided are accurate to the best of my knowledge. This report is generated based on client provided data and recorded information. This report is for data recording and financial analysis purpose only and does not constitute investment advice or recommendation. The client's identity has been verified via KYC documents. The report is generated for internal use and analytical purposes only. All information has been provided by the client and recorded by the Investment Advisor. The system does not independently verify such information. Client consents to use of data for financial analysis and regulatory compliance purposes.", True),
             ])
         ]
 
         for i, (title, fields) in enumerate(sections):
             is_last = (i == len(sections) - 1)
+            
+            # Prevent awkward page breaks for the bottom legal sections
+            if i >= len(sections) - 2 and pdf.get_y() > 180:
+                pdf.add_page()
+            elif pdf.get_y() > 230:
+                pdf.add_page()
+                
             render_compact_section(title, fields, is_last=is_last)
 
         return bytes(pdf.output())
