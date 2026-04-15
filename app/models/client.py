@@ -105,6 +105,10 @@ class ClientProfile(SiloBase):
     audit_trails: Mapped[list["ClientAuditTrail"]] = relationship(
         "ClientAuditTrail", back_populates="client", cascade="all, delete-orphan"
     )
+    versions: Mapped[list["ClientVersion"]] = relationship(
+        "ClientVersion", back_populates="client", cascade="all, delete-orphan",
+        order_by="ClientVersion.version_number.desc()"
+    )
 
 class ClientDocument(SiloBase):
     __tablename__ = "client_documents"
@@ -131,3 +135,25 @@ class ClientAuditTrail(SiloBase):
 
     # Relationships
     client: Mapped["ClientProfile"] = relationship("ClientProfile", back_populates="audit_trails")
+
+
+class ClientVersion(SiloBase):
+    """
+    Immutable temporal version snapshot of a client's full profile.
+    SEBI requirement: Every edit creates a new version with valid_from/valid_to
+    for point-in-time queries. Older versions are never modified.
+    """
+    __tablename__ = "client_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number: Mapped[int] = mapped_column(nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    valid_from: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=get_now_ist)
+    valid_to: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    change_reason: Mapped[Optional[str]] = mapped_column(Text)
+    changed_by: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
+
+    # Relationships
+    client: Mapped["ClientProfile"] = relationship("ClientProfile", back_populates="versions")

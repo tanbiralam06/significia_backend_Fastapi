@@ -16,6 +16,10 @@ class AssetAllocation(SiloBase):
     client_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    client_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True,
+        comment="Links to the specific client_versions snapshot active at allocation time"
+    )
     ia_registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
     assigned_risk_tier: Mapped[str] = mapped_column(String(100), nullable=False)
     tier_recommendation: Mapped[str] = mapped_column(Text, nullable=False)

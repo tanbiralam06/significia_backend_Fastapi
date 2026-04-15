@@ -4,7 +4,7 @@ Client Routes — Bridge Architecture
 All client data operations now go through the Bridge.
 No direct database connections are made from this backend.
 """
-from typing import List
+from typing import List, Any, Optional
 import uuid
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form, Request
@@ -157,6 +157,41 @@ async def upload_client_document_bridge(
         data={"document_type": bridge_doc_type}
     )
     return result
+
+
+# ════════════════════════════════════════════════════════════════════
+#  CLIENT VERSIONING (SEBI Temporal Audit — Bridge Proxy)
+# ════════════════════════════════════════════════════════════════════
+
+@router.get("/clients/{client_id}/versions", response_model=dict)
+async def list_client_versions_bridge(
+    client_id: uuid.UUID,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """List all historical versions of a client via the Bridge."""
+    return await bridge.get(f"/clients/{client_id}/versions")
+
+
+@router.get("/clients/{client_id}/versions/{version_id}", response_model=dict)
+async def get_client_version_bridge(
+    client_id: uuid.UUID,
+    version_id: uuid.UUID,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get a specific version snapshot of a client via the Bridge."""
+    return await bridge.get(f"/clients/{client_id}/versions/{version_id}")
+
+
+from fastapi import Query as FastAPIQuery
+
+@router.get("/clients/{client_id}/version-at", response_model=dict)
+async def get_client_version_at_date_bridge(
+    client_id: uuid.UUID,
+    target_date: str = FastAPIQuery(..., description="ISO date or datetime, e.g. 2025-04-15"),
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """SEBI Point-in-Time Query: Get the version of a client active on a specific date."""
+    return await bridge.get(f"/clients/{client_id}/version-at", params={"target_date": target_date})
 
 
 @router.get("/blank-form")
