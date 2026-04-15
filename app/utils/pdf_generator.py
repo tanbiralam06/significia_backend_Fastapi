@@ -278,7 +278,7 @@ class ClientPDFGenerator:
                 ("Annual Income", f"INR {float(client_data.get('annual_income', 0)):,.0f}"),
                 ("Net Worth", f"INR {float(client_data.get('net_worth', 0)):,.0f}"),
                 ("Income Source", client_data.get("income_source")),
-                ("Risk Profile", client_data.get("risk_profile")),
+                ("Risk Profile (Client Provided)", client_data.get("risk_profile")),
                 ("Current Portfolio", f"INR {float(client_data.get('existing_portfolio_value', 0)):,.0f}"),
                 ("Portfolio Detail", client_data.get("existing_portfolio_composition"), True),
             ]),
@@ -299,7 +299,7 @@ class ClientPDFGenerator:
             ("Declaration", [
                 ("Agreement Date", client_data.get("agreement_date")),
                 ("IA Master", client_data.get("advisor_name")),
-                ("Statement", "I hereby confirm that all details provided are accurate to the best of my knowledge. This report is generated based on client provided data and recorded information. This report is for data recording and financia analysis purpose only and does not constitute investment advice or recommendation. The client's identity has been verified via KYC documents. The report is generated for internal use and analytical purposes only.", True),
+                ("Statement", "I hereby confirm that all details provided are accurate to the best of my knowledge. This report is generated based on client provided data and recorded information. This report is for data recording and financia analysis purpose only and does not constitute investment advice or recommendation. The client's identity has been verified via KYC documents. The report is generated for internal use and analytical purposes only. All information has been provided by the client and recorded by the Investment Advisor. The system does not independently verify such information. Client consents to use of data for financial analysis and regulatory compliance purposes.", True),
             ])
         ]
 
