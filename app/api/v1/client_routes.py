@@ -35,10 +35,6 @@ async def create_client_bridge(
     """Create a new client via the Bridge (enforces client limit on Bridge side)."""
     try:
         data = client_in.model_dump()
-        # Hash the password before sending — Bridge stores the hash
-        from app.core.security import get_password_hash
-        raw_password = data.pop("password")
-        data["password_hash"] = get_password_hash(raw_password)
         data["email_normalized"] = data["email"].lower()
 
         result = await bridge.post("/clients", data)
