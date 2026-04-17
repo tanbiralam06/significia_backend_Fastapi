@@ -176,6 +176,19 @@ async def send_report_email(
     return await bridge.post("/email/send/report", payload)
 
 
+@router.post("/onboarding/send")
+async def send_onboarding_email(
+    payload: dict,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Manually trigger the onboarding email for a client.
+    This request is proxied to the tenant's Bridge.
+    """
+    return await bridge.post("/email/onboarding/send", payload)
+
+
 # ══════════════════════════════════════════════════════════════════
 #  DELIVERY LOGS
 # ══════════════════════════════════════════════════════════════════
