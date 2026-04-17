@@ -36,7 +36,7 @@ def create_superuser(email: str, password: str):
             user.password_hash = get_password_hash(password)
             user.role = "super_admin"
             user.status = "active"
-            user.email_verified = True
+            user.is_email_verified = True
             db.commit()
             print(f"[+] User updated successfully.")
         else:
@@ -48,7 +48,7 @@ def create_superuser(email: str, password: str):
                 password_hash=get_password_hash(password),
                 role="super_admin",
                 status="active",
-                email_verified=True
+                is_email_verified=True
             )
             user_repo.create(db, user)
             print(f"[+] Super user created successfully.")
