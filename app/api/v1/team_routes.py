@@ -36,7 +36,14 @@ async def list_team_members(
                 "phone_number": emp.get("phone_number") or "N/A",
                 "designation": emp.get("designation") or "Staff",
                 "address": None,
-                "created_at": emp.get("created_at")
+                "created_at": emp.get("created_at"),
+                "department_id": emp.get("department_id"),
+                "department_name": emp.get("department_name"),
+                "staff_code": emp.get("staff_code"),
+                "date_of_joining": emp.get("date_of_joining"),
+                "date_of_leaving": emp.get("date_of_leaving"),
+                "employee_type": emp.get("employee_type"),
+                "certificate_issue_date": emp.get("certificate_issue_date")
             })
         return formatted
     except Exception as e:
@@ -51,9 +58,15 @@ async def onboard_team_member(
     role: str = Form(...),
     designation: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
+    staff_code: Optional[str] = Form(None),
+    date_of_joining: Optional[str] = Form(None),
+    date_of_leaving: Optional[str] = Form(None),
+    employee_type: str = Form("non-advisory"),
+    department_id: Optional[str] = Form(None),
     ia_registration_number: Optional[str] = Form(None),
     date_of_registration: Optional[str] = Form(None),
     date_of_registration_expiry: Optional[str] = Form(None),
+    certificate_issue_date: Optional[str] = Form(None),
     certificate: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_ia_admin),
@@ -69,7 +82,7 @@ async def onboard_team_member(
     tenant = current_admin.tenant
     current_usage = db.query(User).filter(
         User.tenant_id == tenant.id,
-        User.role.in_(["owner", "partner", "ia_staff", "analyst", "staff"])
+        User.role.in_(["owner", "partner", "ia_staff", "research_analyst", "investment_advisor", "management", "staff"])
     ).count()
 
     if current_usage >= tenant.max_client_permit:
@@ -79,10 +92,10 @@ async def onboard_team_member(
         )
 
     # 2. Prevent IA Owners from creating Super Admins
-    if role not in ["partner", "ia_staff", "analyst"]:
+    if role not in ["partner", "ia_staff", "research_analyst", "investment_advisor", "management"]:
         raise HTTPException(
             status_code=400,
-            detail="Invalid role. You can only onboard Partners, Staff, or Analysts."
+            detail="Invalid role. You can only onboard Partners, Staff, RA, IA, or Management."
         )
 
     # Mirror the user into the Bridge DB so they can login.
@@ -94,9 +107,15 @@ async def onboard_team_member(
         "role": role,
         "designation": designation,
         "phone_number": phone_number,
+        "staff_code": staff_code,
+        "date_of_joining": date_of_joining,
+        "date_of_leaving": date_of_leaving,
+        "employee_type": employee_type,
+        "department_id": department_id,
         "ia_registration_number": ia_registration_number,
         "date_of_registration": date_of_registration,
-        "date_of_registration_expiry": date_of_registration_expiry
+        "date_of_registration_expiry": date_of_registration_expiry,
+        "certificate_issue_date": certificate_issue_date
     }
     
     # Send to silo and expect the bridge to create the user and return their new ID
@@ -140,6 +159,14 @@ async def update_team_member(
     if request_data.full_name is not None: bridge_payload["name"] = request_data.full_name
     if request_data.role is not None: bridge_payload["role"] = request_data.role
     if request_data.status is not None: bridge_payload["status"] = request_data.status
+    if request_data.department_id is not None: bridge_payload["department_id"] = str(request_data.department_id)
+    if request_data.staff_code is not None: bridge_payload["staff_code"] = request_data.staff_code
+    if request_data.date_of_joining is not None: bridge_payload["date_of_joining"] = request_data.date_of_joining
+    if request_data.date_of_leaving is not None: bridge_payload["date_of_leaving"] = request_data.date_of_leaving
+    if request_data.employee_type is not None: bridge_payload["employee_type"] = request_data.employee_type
+    if request_data.certificate_issue_date is not None: bridge_payload["certificate_issue_date"] = request_data.certificate_issue_date
+    if request_data.change_reason_type: bridge_payload["change_reason_type"] = request_data.change_reason_type
+    if request_data.change_reason_text: bridge_payload["change_reason_text"] = request_data.change_reason_text
     
     if bridge_payload:
         await bridge.put(f"/employees/{str(user_id)}", json=bridge_payload)

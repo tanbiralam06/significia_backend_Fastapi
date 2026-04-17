@@ -72,6 +72,13 @@ class StaffUserBase(BaseModel):
     address: Optional[str] = None
     role: str = "relationship_manager"
     status: str = "active"
+    department_id: Optional[UUID] = None
+    department_name: Optional[str] = None
+    staff_code: Optional[str] = None
+    date_of_joining: Optional[str] = None
+    date_of_leaving: Optional[str] = None
+    employee_type: Optional[str] = "non-advisory"
+    certificate_issue_date: Optional[str] = None
 
 class StaffUserCreate(StaffUserBase):
     password: str = Field(..., min_length=8)
@@ -86,6 +93,14 @@ class StaffUserUpdate(BaseModel):
     address: Optional[str] = None
     role: Optional[str] = None
     status: Optional[str] = None
+    department_id: Optional[UUID] = None
+    staff_code: Optional[str] = None
+    date_of_joining: Optional[str] = None
+    date_of_leaving: Optional[str] = None
+    employee_type: Optional[str] = None
+    certificate_issue_date: Optional[str] = None
+    change_reason_type: Optional[str] = "data_update"
+    change_reason_text: Optional[str] = "Staff profile updated"
 
 class StaffUserOut(StaffUserBase):
     id: UUID

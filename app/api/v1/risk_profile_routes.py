@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 import uuid
 import asyncio
+import json
+import io
+import hashlib
 
 from app.api.deps import get_bridge_client, get_db
 from app.services.bridge_client import BridgeClient
@@ -33,6 +36,48 @@ from app.services.risk_profile_service import RiskProfileService
 from app.services.custom_risk_profile_service import CustomRiskProfileService
 
 router = APIRouter()
+
+
+# ════════════════════════════════════════════════════════════════════
+#  REPORT HISTORY & TRANSPARENCY HELPERS
+# ════════════════════════════════════════════════════════════════════
+
+def compute_data_fingerprint(assessment_data, client_data) -> str:
+    """Generate a SHA-256 fingerprint of the assessment data."""
+    payload = {
+        "assessment": assessment_data,
+        "client": client_data,
+        "version": assessment_data.get("version_number", 1)
+    }
+    encoded = json.dumps(payload, sort_keys=True, default=str).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
+
+async def record_report_audit(
+    bridge: BridgeClient,
+    client_id: str,
+    record_id: str,
+    report_type: str,
+    version_number: int,
+    data_hash: str,
+    action: str = "GENERATED",
+    change_summary: Optional[str] = None
+) -> Optional[str]:
+    """Helper to record report generation/delivery events in the Bridge."""
+    try:
+        resp = await bridge.post("/reports/history", data={
+            "client_id": client_id,
+            "profile_id": record_id, # Re-using profile_id as generic source_record_id
+            "report_type": report_type,
+            "version_number": version_number,
+            "report_hash": data_hash,
+            "change_summary": change_summary,
+            "metadata": {"action": action, "source": "backend_proxy"}
+        })
+        return resp.get("short_id") or resp.get("id")
+    except Exception as e:
+        import logging
+        logging.getLogger("significia.risk").warning(f"Failed to record report history: {e}")
+        return None
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -293,7 +338,23 @@ async def download_risk_assessment_pdf_bridge(
                 logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
             except: pass
 
-        # 4. Generate PDF
+        # 4. Record Audit
+        data_hash = compute_data_fingerprint(assessment, client_data)
+        version = assessment.get("version_number", 1)
+        change_summary = f"Generated Risk Assessment PDF (v{version})"
+        
+        audit_id = await record_report_audit(
+            bridge=bridge,
+            client_id=client_id,
+            record_id=assessment_id,
+            report_type="RISK_ASSESSMENT",
+            version_number=version,
+            data_hash=data_hash,
+            action="DOWNLOADED",
+            change_summary=change_summary
+        )
+
+        # 5. Generate PDF
         pdf_buffer = ReportService.generate_risk_profile_pdf_bridge(
             assessment_data=assessment,
             client_data=client_data,
@@ -350,7 +411,23 @@ async def download_risk_assessment_docx_bridge(
                 logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
             except: pass
 
-        # 4. Generate DOCX
+        # 4. Record Audit
+        data_hash = compute_data_fingerprint(assessment, client_data)
+        version = assessment.get("version_number", 1)
+        change_summary = f"Generated Risk Assessment DOCX (v{version})"
+        
+        audit_id = await record_report_audit(
+            bridge=bridge,
+            client_id=client_id,
+            record_id=assessment_id,
+            report_type="RISK_ASSESSMENT_WORD",
+            version_number=version,
+            data_hash=data_hash,
+            action="DOWNLOADED",
+            change_summary=change_summary
+        )
+
+        # 5. Generate DOCX
         docx_buffer = ReportService.generate_risk_profile_docx_bridge(
             assessment_data=assessment,
             client_data=client_data,
@@ -474,3 +551,148 @@ async def download_custom_risk_assessment_docx_bridge(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate Word: {str(e)}")
+
+
+@router.post("/bridge/assessment/{assessment_id}/email")
+async def email_risk_assessment_bridge(
+    assessment_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+):
+    """Generate and email standard risk assessment to client."""
+    try:
+        # 1. Fetch Data
+        assessment = await bridge.get(f"/risk-assessments/id/{assessment_id}")
+        if not assessment: raise HTTPException(404, "Assessment not found")
+        
+        client = await bridge.get(f"/clients/{assessment.get('client_id')}")
+        ia_data = await bridge.get("/ia-master")
+        q_id = assessment.get("questionnaire_id")
+        q_data = await bridge.get(f"/risk-questionnaires/{q_id}") if q_id and q_id != "sample-form" else None
+
+        client_name = client.get("client_name", "Valued Client")
+        client_email = client.get("email") or assessment.get("email")
+        if not client_email: raise HTTPException(400, "Client email not found")
+
+        # 2. Resolve Logo
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path")
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+            except: pass
+
+        # 3. Generate PDF
+        pdf_buffer = ReportService.generate_risk_profile_pdf_bridge(
+            assessment_data=assessment,
+            client_data=client,
+            ia_data=ia_data,
+            ia_logo_override=logo_path,
+            questionnaire_data=q_data
+        )
+
+        # 4. Record Audit
+        data_hash = compute_data_fingerprint(assessment, client)
+        version = assessment.get("version_number", 1)
+        
+        await record_report_audit(
+            bridge=bridge,
+            client_id=str(assessment.get('client_id')),
+            record_id=assessment_id,
+            report_type="risk_assessment",
+            version_number=version,
+            data_hash=data_hash,
+            action="EMAILED",
+            change_summary=f"Emailed Risk Assessment (v{version}) to {client_email}"
+        )
+
+        # 5. Push to Bridge
+        filename = f"Risk_Assessment_{client_name.replace(' ', '_')}.pdf"
+        template_context = {
+            "client_name": client_name,
+            "ia_name": ia_data.get("ia_name") or ia_data.get("entity_name") or "Your Advisor",
+            "ia_reg_no": ia_data.get("registration_no", ""),
+            "ia_firm_name": ia_data.get("entity_name", ""),
+            "ia_contact_details": f"{ia_data.get('registered_contact_number', '')} | {ia_data.get('registered_email', '')}"
+        }
+
+        email_payload = {
+            "recipient": client_email,
+            "recipient_name": client_name,
+            "template_type": "RISK_PROFILE_DELIVERY",
+            "template_variables": json.dumps(template_context)
+        }
+
+        pdf_buffer.seek(0)
+        files = {"files": (filename, pdf_buffer.read(), "application/pdf")}
+        await bridge.post("/email/send", data=email_payload, files=files)
+
+        return {"status": "success", "message": f"Risk assessment emailed to {client_email}"}
+    except Exception as e:
+        import logging
+        logging.getLogger("significia.risk").error(f"Email failed: {str(e)}")
+        raise HTTPException(500, f"Email delivery failed: {str(e)}")
+
+
+@router.post("/bridge/custom-assessment/{assessment_id}/email")
+async def email_custom_risk_assessment_bridge(
+    assessment_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+):
+    """Generate and email custom risk assessment to client."""
+    try:
+        assessment = await bridge.get(f"/custom-risk-assessments/id/{assessment_id}")
+        if not assessment: raise HTTPException(404, "Custom Assessment not found")
+        
+        client = await bridge.get(f"/clients/{assessment.get('client_id')}")
+        ia_data = await bridge.get("/ia-master")
+        q_data = await bridge.get(f"/risk-questionnaires/{assessment.get('questionnaire_id')}")
+
+        client_name = client.get("client_name", "Valued Client")
+        client_email = client.get("email")
+        if not client_email: raise HTTPException(400, "Client email not found")
+
+        # Resolve Logo
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path")
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                logo_path = await resolve_logo_to_local_path(url_resp.get("url"), db)
+            except: pass
+
+        pdf_buffer = ReportService.generate_risk_profile_pdf_bridge(
+            assessment_data=assessment,
+            client_data=client,
+            ia_data=ia_data,
+            ia_logo_override=logo_path,
+            questionnaire_data=q_data
+        )
+
+        filename = f"Risk_Assessment_{client_name.replace(' ', '_')}.pdf"
+        template_context = {
+            "client_name": client_name,
+            "ia_name": ia_data.get("ia_name") or ia_data.get("entity_name") or "Your Advisor",
+            "ia_reg_no": ia_data.get("registration_no", ""),
+            "ia_firm_name": ia_data.get("entity_name", ""),
+            "ia_contact_details": f"{ia_data.get('registered_contact_number', '')} | {ia_data.get('registered_email', '')}"
+        }
+
+        email_payload = {
+            "recipient": client_email,
+            "recipient_name": client_name,
+            "template_type": "RISK_PROFILE_DELIVERY",
+            "template_variables": json.dumps(template_context)
+        }
+
+        pdf_buffer.seek(0)
+        files = {"files": (filename, pdf_buffer.read(), "application/pdf")}
+        await bridge.post("/email/send", data=email_payload, files=files)
+
+        return {"status": "success", "message": f"Custom risk assessment emailed to {client_email}"}
+    except Exception as e:
+        raise HTTPException(500, f"Email delivery failed: {str(e)}")

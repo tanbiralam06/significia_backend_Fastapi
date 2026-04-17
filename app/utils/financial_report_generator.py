@@ -28,6 +28,9 @@ try:
             self.advisor_name = kwargs.pop('advisor_name', "")
             self.ia_reg_no = kwargs.pop('ia_reg_no', "")
             self.report_date = kwargs.pop('report_date', "")
+            self.report_id = kwargs.pop('report_id', None)
+            self.report_hash = kwargs.pop('report_hash', None)
+            self.report_version = kwargs.pop('report_version', None)
             canvas.Canvas.__init__(self, *args, **kwargs)
             self._saved_page_states = []
 
@@ -57,9 +60,13 @@ try:
                 footer_parts = []
                 if self.advisor_name: footer_parts.append(f"Prepared by: {self.advisor_name}")
                 if self.report_date: footer_parts.append(f"Report Date: {self.report_date}")
-                # if self.entity_name: footer_parts.append(f"Entity: {self.entity_name}")
-                # if self.ia_reg_no: footer_parts.append(f"RIA Reg No: {self.ia_reg_no}")
-                footer_text = " , ".join(footer_parts)
+                
+                # Add Audit Info if available
+                if self.report_id:
+                    audit_text = f"Audit ID: {self.report_id}"
+                    footer_parts.append(audit_text)
+
+                footer_text = "  |  ".join(footer_parts)
                 self.drawString(30, 20, footer_text)
             
             # Header: Entity Name (top-left)
@@ -77,7 +84,10 @@ try:
             # Header: STRICTLY CONFIDENTIAL (top-right, every page)
             self.setFont("Helvetica-Oblique", 7)
             self.setFillColor(colors.grey)
-            self.drawRightString(570, 820, "STRICTLY CONFIDENTIAL")
+            header_right = "STRICTLY CONFIDENTIAL"
+            if self.report_version:
+                header_right = f"REPORT VERSION: V{self.report_version}  |  {header_right}"
+            self.drawRightString(570, 820, header_right)
             self.setFillColor(colors.black)
 
 except ImportError:
@@ -203,7 +213,10 @@ class FinancialReportGenerator:
         profile: Any,
         client_name: str,
         ia_logo_path: Optional[str] = None,
-        ia_name: Optional[str] = None
+        ia_name: Optional[str] = None,
+        report_id: Optional[str] = None,
+        report_hash: Optional[str] = None,
+        report_version: Optional[int] = None
     ) -> io.BytesIO:
         """Generate a professionally formatted PDF Financial Analysis report."""
         if not PDF_AVAILABLE:
@@ -230,7 +243,17 @@ class FinancialReportGenerator:
 
         # Factory for canvas with ia_name and advisor_name
         def canvas_factory(*args, **kwargs):
-            return NumberedCanvas(*args, entity_name=ia_name, advisor_name=advisor_name, ia_reg_no=ia_reg_no, report_date=report_date_str, **kwargs)
+            return NumberedCanvas(
+                *args, 
+                entity_name=ia_name, 
+                advisor_name=advisor_name, 
+                ia_reg_no=ia_reg_no, 
+                report_date=report_date_str, 
+                report_id=report_id,
+                report_hash=report_hash,
+                report_version=report_version,
+                **kwargs
+            )
 
         doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=50, bottomMargin=40)
         elements = []
@@ -997,7 +1020,10 @@ class FinancialReportGenerator:
         profile: Any,
         client_name: str,
         ia_logo_path: Optional[str] = None,
-        ia_name: Optional[str] = None
+        ia_name: Optional[str] = None,
+        report_id: Optional[str] = None,
+        report_hash: Optional[str] = None,
+        report_version: Optional[int] = None
     ) -> io.BytesIO:
         """Generate a professionally formatted Word Financial Analysis report."""
         if not WORD_AVAILABLE:
@@ -1026,7 +1052,11 @@ class FinancialReportGenerator:
                 r_p.runs[0].italic = True
             
         # Right side: Strictly Confidential
-        htable.cell(0, 1).text = "STRICTLY CONFIDENTIAL"
+        header_right = "STRICTLY CONFIDENTIAL"
+        if report_version:
+            header_right = f"REPORT VERSION: V{report_version}  |  {header_right}"
+            
+        htable.cell(0, 1).text = header_right
         htable.cell(0, 1).paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
         htable.cell(0, 1).paragraphs[0].runs[0].font.size = Pt(8)
         htable.cell(0, 1).paragraphs[0].runs[0].italic = True
@@ -1433,9 +1463,13 @@ class FinancialReportGenerator:
         footer_parts = [
             f"Prepared by: {prepared_by}", 
             f"Report Date: {report_date_str_full}",
-            f"Entity: {ia_name or 'N/A'}", 
-            f"RIA Reg No: {ia_reg_no}"
+            f"RIA Reg No: {ia_reg_no or 'N/A'}"
         ]
+        
+        if report_id:
+            audit_text = f"Audit ID: {report_id}"
+            footer_parts.append(audit_text)
+
         footer_text = " | ".join(footer_parts)
         
         f_run = f_p.add_run(footer_text)

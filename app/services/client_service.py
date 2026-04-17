@@ -184,6 +184,14 @@ class ClientService:
         # Convert to dict for generator
         client_dict = {c.name: getattr(db_client, c.name) for c in db_client.__table__.columns}
         
+        # Enriched Relational Data
+        if db_client.ipv_done_by:
+            client_dict["ipv_done_by_name"] = db_client.ipv_done_by.name_of_employee
+        else:
+            client_dict["ipv_done_by_name"] = "N/A"
+            
+        client_dict["uploaded_documents"] = [doc.document_type for doc in db_client.documents]
+        
         # Ensure numeric fields are actually numbers and not None
         numeric_fields = ["annual_income", "net_worth", "existing_portfolio_value"]
         for field in numeric_fields:

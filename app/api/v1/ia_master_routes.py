@@ -200,6 +200,30 @@ async def get_latest_ia(
     """Proxy Latest IA Info request to the Bridge."""
     return await bridge.get("/ia-master")
 
+@router.get("/departments", response_model=List[dict])
+async def list_departments(
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Department list request to the Bridge silo."""
+    return await bridge.get("/departments")
+
+@router.post("/departments", response_model=dict)
+async def create_department(
+    name: str = Form(...),
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Department creation request to the Bridge silo."""
+    # Using post_multipart because the Bridge expects Form data
+    return await bridge.post_multipart("/departments", data={"name": name})
+
+@router.delete("/departments/{dept_id}", response_model=dict)
+async def delete_department(
+    dept_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Department deletion request to the Bridge silo."""
+    return await bridge.delete(f"/departments/{dept_id}")
+
 @router.get("/employees", response_model=List[dict])
 async def list_ia_employees(
     bridge: BridgeClient = Depends(get_bridge_client)
@@ -444,22 +468,157 @@ async def get_report_history(
     return await bridge.get("/sebi/report-history", params=params)
 
 
+@router.get("/sebi/report-history/lookup")
+async def lookup_report(
+    source_record_id: str,
+    report_type: str = None,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Proxy: Look up the latest report for a specific source record."""
+    params = {"source_record_id": source_record_id}
+    if report_type:
+        params["report_type"] = report_type
+    return await bridge.get("/sebi/report-history/lookup", params=params)
+
+
 @router.post("/sebi/report-history")
 async def create_report_history(
     data: dict,
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
-    """Proxy: Record a report generation event."""
-    return await bridge.post("/sebi/report-history", data)
+    """Proxy: Record a report generation event (Unified Route)."""
+    return await bridge.post("/reports/history", data)
 
 
 @router.post("/sebi/report-history/{report_id}/deliver")
-async def mark_report_delivered(
+async def redeliver_report_history(
     report_id: str,
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db)
 ):
-    """Proxy: Mark a report as delivered to client."""
-    return await bridge.post(f"/sebi/report-history/{report_id}/deliver")
+    """
+    Stateless RE-DELIVERY of a previously recorded report.
+    Fetches history metadata from Bridge, re-generates report on-the-fly,
+    and sends via Bridge SMTP relay.
+    """
+    from app.services.financial_report_service import FinancialReportService
+    
+    # 1. Fetch the audit record from the Bridge to get profile_id and version
+    try:
+        audit_record = await bridge.get(f"/reports/history/record/{report_id}")
+    except Exception as e:
+        logger.error(f"Failed to fetch audit record for re-delivery: {e}")
+        raise HTTPException(404, "Report history record not found on Bridge")
+
+    # 2. Trigger re-generation and delivery
+    result = await FinancialReportService.redeliver_report_via_bridge(
+        bridge=bridge,
+        db=db,
+        audit_record=audit_record
+    )
+    
+    # Safely check for success/message as result might be a SimpleNamespace
+    success = False
+    message = None
+    if hasattr(result, "get"):
+        success = result.get("success", False)
+        message = result.get("message")
+    else:
+        success = getattr(result, "success", False)
+        message = getattr(result, "message", None)
+
+    if not success and message:
+        raise HTTPException(500, f"Re-delivery failed: {message}")
+        
+    return result
+
+
+@router.get("/sebi/report-history/export")
+async def export_report_history(
+    format: str = "csv",
+    report_type: str = None,
+    client_id: str = None,
+    from_date: str = None,
+    to_date: str = None,
+    request: Request = None,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Export report generation history as CSV or JSON.
+    """
+    from app.utils.reports.report_history_report import ReportHistoryReportGenerator
+
+    try:
+        # 1. Fetch data from Bridge
+        params = {}
+        if report_type:
+            params["report_type"] = report_type
+        if client_id:
+            params["client_id"] = client_id
+        if from_date:
+            params["from_date"] = from_date
+        if to_date:
+            params["to_date"] = to_date
+
+        entries = await bridge.get("/sebi/report-history", params=params)
+
+        # 2. Fetch IA Master metadata for header
+        ia_data = None
+        try:
+            ia_data = await bridge.get("/ia-master")
+        except Exception:
+            pass
+
+        # 3. Generate file
+        filters = {
+            "report_type": report_type,
+            "client_id": client_id,
+            "from_date": from_date,
+            "to_date": to_date
+        }
+
+        if format.lower() == "json":
+            file_bytes = ReportHistoryReportGenerator.generate_json(entries, filters, ia_data)
+            media_type = "application/json"
+        else:
+            file_bytes = ReportHistoryReportGenerator.generate_csv(entries, filters, ia_data)
+            media_type = "text/csv"
+
+        filename = ReportHistoryReportGenerator.get_filename(
+            format.lower() if format.lower() in ("csv", "json") else "csv",
+            from_date, to_date
+        )
+
+        # 4. Audit the export action
+        try:
+            await bridge.post("/sebi/audit", {
+                "action_type": "EXPORT",
+                "table_name": "report_history",
+                "record_id": "bulk_export",
+                "change_reason_type": "report_generation",
+                "change_reason_text": f"Report History exported as {format.upper()} ({len(entries)} entries)",
+            }, headers={
+                "X-User-Id": str(current_user.id),
+                "X-User-IP": request.client.host if request and request.client else "0.0.0.0",
+                "X-User-Agent": request.headers.get("User-Agent", "Unknown") if request else "Unknown",
+            })
+        except Exception as e:
+            logger.warning(f"Failed to log report history export event: {e}")
+
+        return Response(
+            content=file_bytes,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Report history export failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export report history")
 
 
 @router.get("/sebi/ia-master/change-summary")

@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.database.base import SiloBase, Base
 from app.core.timezone import get_now_ist
 
-class IAMaster(Base):
+class IAMaster(SiloBase):
     __tablename__ = "ia_master"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -30,7 +30,7 @@ class IAMaster(Base):
     ifsc_code: Mapped[str] = mapped_column(String(20))
     
     # ── Multi-Tenant Link ───────────────────────────────────────────
-    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=True)
     
     # ── Renewal Details ─────────────────────────────────────────────
     is_renewal: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
@@ -38,8 +38,8 @@ class IAMaster(Base):
     renewal_expiry_date: Mapped[Optional[Date]] = mapped_column(Date)
     
     # ── Relationship Manager (RM) ───────────────────────────────────
-    # FK to users table (Super Admin's staff)
-    relationship_manager_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    # FK to users table (Super Admin's staff) - Stored as UUID for reference
+    relationship_manager_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
     
     # Document paths
     ia_certificate_path: Mapped[Optional[str]] = mapped_column(String(512))
@@ -52,7 +52,6 @@ class IAMaster(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
 
-    # Relationships
     employees: Mapped[List["EmployeeDetails"]] = relationship(
         "EmployeeDetails", back_populates="ia_master", cascade="all, delete-orphan"
     )
@@ -60,7 +59,14 @@ class IAMaster(Base):
         "ContactPerson", back_populates="ia_master", cascade="all, delete-orphan"
     )
 
-class EmployeeDetails(Base):
+class Department(SiloBase):
+    __tablename__ = "departments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
+
+class EmployeeDetails(SiloBase):
     __tablename__ = "employee_details"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -68,17 +74,29 @@ class EmployeeDetails(Base):
     name_of_employee: Mapped[str] = mapped_column(String(255), nullable=False)
     date_of_birth: Mapped[Date] = mapped_column(Date, nullable=False)
     designation: Mapped[str] = mapped_column(String(100))
+    phone_number: Mapped[Optional[str]] = mapped_column(String(20))
+    
+    # Expanded professional metadata
+    staff_code: Mapped[Optional[str]] = mapped_column(String(50))
+    date_of_joining: Mapped[Optional[Date]] = mapped_column(Date)
+    date_of_leaving: Mapped[Optional[Date]] = mapped_column(Date)
+    employee_type: Mapped[str] = mapped_column(String(50), default="non-advisory")
+    department_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("departments.id"))
+    
     ia_registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
     date_of_registration: Mapped[Optional[Date]] = mapped_column(Date)
+    certificate_issue_date: Mapped[Optional[Date]] = mapped_column(Date)
     date_of_registration_expiry: Mapped[Optional[Date]] = mapped_column(Date)
     certificate_path: Mapped[Optional[str]] = mapped_column(String(512))
+    
+    version_number: Mapped[int] = mapped_column(default=1, server_default="1")
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     
     # Relationships
     ia_master: Mapped["IAMaster"] = relationship("IAMaster", back_populates="employees")
 
-class AuditTrail(Base):
+class AuditTrail(SiloBase):
     __tablename__ = "audit_trail"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -99,7 +117,7 @@ class AuditTrail(Base):
     change_reason_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     entity_version: Mapped[Optional[int]] = mapped_column(nullable=True)
 
-class ContactPerson(Base):
+class ContactPerson(SiloBase):
     __tablename__ = "contact_persons"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -119,7 +137,7 @@ class ContactPerson(Base):
 
 # ── SEBI-SAFE Compliance Models ──────────────────────────────────
 
-class ReportHistory(Base):
+class ReportHistory(SiloBase):
     """
     Tracks every report generation event with version control.
     SEBI requirement: If a report is regenerated, maintain Version 1, Version 2… 
@@ -142,7 +160,7 @@ class ReportHistory(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
 
 
-class IAMasterVersion(Base):
+class IAMasterVersion(SiloBase):
     """
     Immutable version snapshots of IA Master data.
     SEBI requirement: Every edit must create a new version while keeping old versions intact.

@@ -20,6 +20,10 @@ class RiskAssessment(SiloBase):
     client_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("clients.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    client_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), nullable=True, index=True,
+        comment="Links to the specific client_versions snapshot active at assessment time"
+    )
 
     # Question Responses
     q1_interest_choice: Mapped[str] = mapped_column(String(10), nullable=False)

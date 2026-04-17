@@ -158,6 +158,9 @@ class ClientUpdate(BaseModel):
     ckyc_number: Optional[str] = None
     ipv_done_by_id: Optional[uuid.UUID] = None
     ipv_date: Optional[date] = None
+    
+    # Audit reference
+    rectification_serial_no: Optional[str] = None
 
 class ClientDocumentResponse(BaseModel):
     id: uuid.UUID

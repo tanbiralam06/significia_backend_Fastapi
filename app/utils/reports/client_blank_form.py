@@ -194,7 +194,7 @@ def generate_client_blank_form(
     # 5. INVESTMENT PROFILE
     add_section_header("5. Investment Profile")
     investment_data = [
-        [Paragraph("Risk Profile:", label_style), "", Paragraph("Exp (Years):", label_style), ""],
+        [Paragraph("Risk Profile(Client Provided):", label_style), "", Paragraph("Exp (Years):", label_style), ""],
         [Paragraph("Horizon:", label_style), "", Paragraph("Liquidity Needs:", label_style), ""],
         [Paragraph("Objectives:", label_style), "", "", ""],
         ["", "", "", ""]
@@ -269,7 +269,7 @@ def generate_client_blank_form(
     elements.append(Paragraph(declaration_text, normal_label_style))
     elements.append(Spacer(1, 40))
 
-    elements.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client", normal_label_style))
+    elements.append(Paragraph("All inputs provided above have been discussed with and confirmed by the client. All information has been provided by the client and recorded by the Investment Adviser. The system does not independently verify such information. Client consents to use of data for financial analysis and regulatory compliance purposes. This form is for data recording and financial analysis purposes only and does not constitute investment advice and recommendation. The investment advisor relies on the information provided by the client and does not independently verify such information.", normal_label_style))
     elements.append(Spacer(1, 15))
     
     sig_data = [

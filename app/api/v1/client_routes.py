@@ -4,7 +4,7 @@ Client Routes — Bridge Architecture
 All client data operations now go through the Bridge.
 No direct database connections are made from this backend.
 """
-from typing import List
+from typing import List, Any, Optional
 import uuid
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status, Response, UploadFile, File, Form, Request
@@ -35,10 +35,6 @@ async def create_client_bridge(
     """Create a new client via the Bridge (enforces client limit on Bridge side)."""
     try:
         data = client_in.model_dump()
-        # Hash the password before sending — Bridge stores the hash
-        from app.core.security import get_password_hash
-        raw_password = data.pop("password")
-        data["password_hash"] = get_password_hash(raw_password)
         data["email_normalized"] = data["email"].lower()
 
         result = await bridge.post("/clients", data)
@@ -116,6 +112,24 @@ async def delete_client_bridge(
     return None
 
 
+DOCUMENT_TYPE_MAP = {
+    "PAN Card": "pan_card_copy",
+    "Aadhar Card": "aadhar_card_copy",
+    "Passport": "passport_copy",
+    "Cancelled Cheque": "cancelled_cheque_copy",
+    "Photo (Passport size)": "profile_photo",
+    "Registration Certificate": "certificate_path",
+    "Signature": "client_signature_path",
+    "Advisor Signature": "advisor_signature_path",
+    "Income Proof": "income_proof_path",
+    "Address Proof": "address_proof_path",
+    "Signed Form": "signed_form_path",
+    "Client Agreement": "agreement_copy_path",
+    "Financial Analysis Document": "financial_analysis_path",
+    "Other": "other_document_path"
+}
+
+
 @router.post("/clients/{client_id}/upload-document", response_model=dict)
 async def upload_client_document_bridge(
     client_id: uuid.UUID,
@@ -123,15 +137,169 @@ async def upload_client_document_bridge(
     file: UploadFile = File(...),
     bridge: BridgeClient = Depends(get_bridge_client),
 ):
-    """Upload a document for a client via the Bridge (stored in IA's own bucket)."""
+    """
+    Upload a document for a client via the Bridge.
+    Maps frontend document types to internal Bridge database columns.
+    """
+    # Map frontend label to bridge column if exists
+    bridge_doc_type = DOCUMENT_TYPE_MAP.get(document_type, document_type)
+    
     file_bytes = await file.read()
     result = await bridge.upload_file(
-        f"/api/storage/upload",
+        f"/clients/{client_id}/upload-document",
         file_bytes=file_bytes,
         filename=file.filename,
         content_type=file.content_type or "application/octet-stream",
+        data={"document_type": bridge_doc_type}
     )
     return result
+
+
+# ════════════════════════════════════════════════════════════════════
+#  CLIENT VERSIONING (SEBI Temporal Audit — Bridge Proxy)
+# ════════════════════════════════════════════════════════════════════
+
+@router.get("/clients/{client_id}/versions", response_model=dict)
+async def list_client_versions_bridge(
+    client_id: uuid.UUID,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """List all historical versions of a client via the Bridge."""
+    return await bridge.get(f"/clients/{client_id}/versions")
+
+
+@router.get("/clients/{client_id}/versions/{version_id}", response_model=dict)
+async def get_client_version_bridge(
+    client_id: uuid.UUID,
+    version_id: uuid.UUID,
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """Get a specific version snapshot of a client via the Bridge."""
+    return await bridge.get(f"/clients/{client_id}/versions/{version_id}")
+
+
+@router.get("/clients/{client_id}/versions/{version_id}/pdf")
+async def download_client_version_report(
+    client_id: uuid.UUID,
+    version_id: uuid.UUID,
+    request: Request,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
+    current_user: Any = Depends(get_current_user),
+):
+    """
+    Generate and download a historical version report for a specific client.
+    """
+    try:
+        # 1. Fetch version snapshot and IA profile in parallel
+        import asyncio
+        version_task = bridge.get(f"/clients/{client_id}/versions/{version_id}")
+        ia_task = bridge.get("/ia-master")
+        employees_task = bridge.get("/employees")
+        
+        version_data, ia_data, employees_list = await asyncio.gather(version_task, ia_task, employees_task)
+        
+        # Resolve Logo for Cover Page
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path") if ia_data else None
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                signed_url = url_resp.get("url")
+                if signed_url:
+                    logo_path = await resolve_logo_to_local_path(signed_url, db)
+            except Exception as e:
+                print(f"Failed to resolve IA logo for version report: {e}")
+        
+        if not version_data or "snapshot" not in version_data:
+            raise HTTPException(status_code=404, detail="Version snapshot not found")
+
+        client_snapshot = version_data["snapshot"]
+        version_number = version_data.get("version_number", "unknown")
+        
+        if ia_data:
+            ia_data["name_of_ia"] = decrypt_string(ia_data.get("name_of_ia"))
+            ia_data["name_of_entity"] = decrypt_string(ia_data.get("name_of_entity"))
+
+        # --- ENRICHMENT FOR HISTORICAL REPORT ---
+        # 1. IPV & Assigned Person Name + Role Lookup
+        ipv_done_by_id = str(client_snapshot.get("ipv_done_by_id") or "")
+        assigned_id = str(client_snapshot.get("assigned_employee_id") or "")
+        
+        # Helper to find employee and format string
+        def get_emp_info(emp_id):
+            if not emp_id: return "N/A"
+            emp = next((e for e in employees_list if str(e.get("id")) == emp_id), None)
+            if not emp: return "N/A"
+            name = emp.get("full_name") or emp.get("name_of_employee") or emp.get("name", "Unknown")
+            role = emp.get("designation") or emp.get("role")
+            return f"{name} ({role})" if role else name
+
+        client_snapshot["ipv_done_by_name"] = get_emp_info(ipv_done_by_id)
+        client_snapshot["assigned_person_info"] = get_emp_info(assigned_id)
+
+        # 2. Document Checklist Mapping (Bridge Columns -> Labels)
+        uploaded = []
+        for label, bridge_col in DOCUMENT_TYPE_MAP.items():
+            if client_snapshot.get(bridge_col):
+                uploaded.append(label)
+        client_snapshot["uploaded_documents"] = uploaded
+
+        # 2. Version Header Info
+        version_info = {
+            "version_number": version_number,
+            "valid_from": version_data.get("valid_from", "Unknown"),
+            "valid_to": version_data.get("valid_to")
+        }
+
+        # 3. Generate PDF using the snapshot
+        pdf_bytes = ClientPDFGenerator.generate_client_report(
+            client_snapshot, 
+            ia_data=ia_data,
+            version_info=version_info,
+            logo_path=logo_path
+        )
+        
+        client_name = client_snapshot.get("client_name", "Client").replace(" ", "_")
+        
+        # --- SEBI AUDIT ---
+        await bridge.post("/sebi/audit", {
+            "action_type": "EXPORT",
+            "table_name": "client_versions",
+            "record_id": str(version_id),
+            "change_reason_type": "report_generation",
+            "change_reason_text": f"Historical Client Report (V{version_number}) Exported: {client_snapshot.get('client_name')}"
+        }, headers={
+            "X-User-Id": str(current_user.id),
+            "X-User-IP": request.client.host if request.client else "0.0.0.0",
+            "X-User-Agent": request.headers.get("User-Agent", "Unknown")
+        })
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=Report_{client_name}_V{version_number}.pdf"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Failed to generate version PDF: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+from fastapi import Query as FastAPIQuery
+
+@router.get("/clients/{client_id}/version-at", response_model=dict)
+async def get_client_version_at_date_bridge(
+    client_id: uuid.UUID,
+    target_date: str = FastAPIQuery(..., description="ISO date or datetime, e.g. 2025-04-15"),
+    bridge: BridgeClient = Depends(get_bridge_client),
+):
+    """SEBI Point-in-Time Query: Get the version of a client active on a specific date."""
+    return await bridge.get(f"/clients/{client_id}/version-at", params={"target_date": target_date})
 
 
 @router.get("/blank-form")
@@ -265,28 +433,73 @@ async def download_client_individual_report(
     client_id: uuid.UUID,
     request: Request,
     bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db),
     current_user: Any = Depends(get_current_user),
 ):
     """
     Generate and download a detailed personal report for a specific client via the Bridge.
     """
     try:
-        # 1. Fetch individual client data and IA profile in parallel
+        # 1. Fetch individual client data, IA profile, and employees in parallel
         import asyncio
         client_task = bridge.get(f"/clients/{client_id}")
         ia_task = bridge.get("/ia-master")
+        employees_task = bridge.get("/employees")
         
-        client, ia_data = await asyncio.gather(client_task, ia_task)
+        client, ia_data, employees_list = await asyncio.gather(client_task, ia_task, employees_task)
         
-        if ia_data:
-            ia_data["name_of_ia"] = decrypt_string(ia_data.get("name_of_ia"))
-            ia_data["name_of_entity"] = decrypt_string(ia_data.get("name_of_entity"))
+        # Resolve Logo for Cover Page
+        logo_path = None
+        ia_logo_key = ia_data.get("ia_logo_path") if ia_data else None
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                signed_url = url_resp.get("url")
+                if signed_url:
+                    logo_path = await resolve_logo_to_local_path(signed_url, db)
+            except Exception as e:
+                print(f"Failed to resolve IA logo for individual report: {e}")
         
         if not client:
             raise HTTPException(status_code=404, detail="Client not found")
 
-        # 2. Generate PDF
-        pdf_bytes = ClientPDFGenerator.generate_client_report(client, ia_data=ia_data)
+        if ia_data:
+            ia_data["name_of_ia"] = decrypt_string(ia_data.get("name_of_ia"))
+            ia_data["name_of_entity"] = decrypt_string(ia_data.get("name_of_entity"))
+        
+        # 2. Enrich: IPV & Assigned Person Name + Role Lookup
+        ipv_done_by_id = str(client.get("ipv_done_by_id") or "")
+        assigned_id = str(client.get("assigned_employee_id") or "")
+        
+        # Helper to find employee and format string
+        def get_emp_info(emp_id):
+            if not emp_id: return "N/A"
+            emp = next((e for e in employees_list if str(e.get("id")) == emp_id), None)
+            if not emp: return "N/A"
+            name = emp.get("full_name") or emp.get("name_of_employee") or emp.get("name", "Unknown")
+            role = emp.get("designation") or emp.get("role")
+            return f"{name} ({role})" if role else name
+
+        client["ipv_done_by_name"] = get_emp_info(ipv_done_by_id)
+        client["assigned_person_info"] = get_emp_info(assigned_id)
+
+        # 3. Enrich: Document Checklist Mapping (Bridge Columns -> Labels)
+        # We check each column mapping from DOCUMENT_TYPE_MAP
+        uploaded = []
+        for label, bridge_col in DOCUMENT_TYPE_MAP.items():
+            # If the client dict has a non-null/non-empty value for that column, it exists
+            if client.get(bridge_col):
+                uploaded.append(label)
+        
+        client["uploaded_documents"] = uploaded
+
+        # 4. Generate PDF
+        pdf_bytes = ClientPDFGenerator.generate_client_report(
+            client, 
+            ia_data=ia_data, 
+            logo_path=logo_path
+        )
         
         client_name = client.get("client_name", "Client").replace(" ", "_")
         

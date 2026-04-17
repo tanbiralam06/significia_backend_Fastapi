@@ -3,12 +3,16 @@ from typing import List, Optional
 import uuid
 from sqlalchemy.orm import Session
 from datetime import datetime
+import json
+import io
+import asyncio
 
 from app.api.deps import get_bridge_client, get_db
 from app.services.bridge_client import BridgeClient
 from app.schemas.asset_allocation import AssetAllocationCreate
 from app.utils.reports.asset_allocation_report import AssetAllocationReportUtils
 from app.utils.encryption import decrypt_string
+import logging
 
 router = APIRouter()
 
@@ -221,3 +225,87 @@ async def download_allocation_docx(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/bridge/allocation/{allocation_id}/email")
+async def email_allocation_report(
+    allocation_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client),
+    db: Session = Depends(get_db)
+):
+    """Generate and email an asset allocation report via the Bridge."""
+    try:
+        # 1. Fetch data
+        allocation_data = await bridge.get(f"/asset-allocations/{allocation_id}")
+        ia_data = await bridge.get("/ia-master")
+        
+        # 2. Prepare branding & Client info
+        client_name = allocation_data.get("client_name") or "Valued Client"
+        client_code = allocation_data.get("client_code")
+        
+        # Resolve client email from Bridge
+        client = await bridge.get(f"/clients/code/{client_code}") if client_code else None
+        client_email = client.get("email") if client else allocation_data.get("email")
+        
+        if not client_email:
+            raise HTTPException(status_code=400, detail="Client email not found")
+
+        ia_name = ia_data.get("name_of_ia") or ia_data.get("entity_name") or "Your Advisor"
+        ia_reg_no = ia_data.get("registration_no")
+        ia_logo_key = ia_data.get("ia_logo_path")
+        
+        logo_path = None
+        if ia_logo_key:
+            try:
+                from app.utils.file_utils import resolve_logo_to_local_path
+                url_resp = await bridge.get("/storage/url", params={"key": ia_logo_key})
+                if url_resp.get("url"):
+                    logo_path = await resolve_logo_to_local_path(url_resp["url"], db)
+            except: pass
+
+        # 3. Generate PDF
+        class MockObject:
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    if isinstance(v, dict): setattr(self, k, MockObject(**v))
+                    else: setattr(self, k, v)
+        
+        if "client" not in allocation_data:
+            allocation_data["client"] = {"client_name": client_name, "client_code": client_code or "N/A"}
+        
+        if "created_at" in allocation_data and isinstance(allocation_data["created_at"], str):
+            try: allocation_data["created_at"] = datetime.fromisoformat(allocation_data["created_at"].replace("Z", "+00:00"))
+            except: allocation_data["created_at"] = datetime.now()
+
+        ia_email = ia_data.get("registered_email_id") or ""
+        ia = MockObject(name_of_ia=ia_name, ia_registration_number=ia_reg_no, registered_email_id=ia_email)
+        allocation = MockObject(**allocation_data)
+        
+        pdf_buffer = AssetAllocationReportUtils.generate_pdf(allocation, ia, ia_logo_path=logo_path)
+        
+        # 4. Push to Bridge
+        filename = f"Asset_Allocation_{client_code or allocation_id}.pdf"
+        template_context = {
+            "client_name": client_name,
+            "ia_name": ia_name,
+            "ia_reg_no": ia_reg_no or "",
+            "ia_firm_name": ia_data.get("entity_name", ""),
+            "ia_contact_details": f"{ia_data.get('registered_contact_number', '')} | {ia_data.get('registered_email_id', '')}"
+        }
+
+        email_payload = {
+            "recipient": client_email,
+            "recipient_name": client_name,
+            "template_type": "ASSET_ALLOCATION_DELIVERY",
+            "template_variables": json.dumps(template_context)
+        }
+
+        pdf_buffer.seek(0)
+        files = {"files": (filename, pdf_buffer.read(), "application/pdf")}
+        await bridge.post("/email/send", data=email_payload, files=files)
+
+        return {"status": "success", "message": f"Asset allocation report emailed to {client_email}"}
+    except Exception as e:
+        logger = logging.getLogger("significia.allocation")
+        logger.error(f"Email delivery failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Email delivery failed: {str(e)}")

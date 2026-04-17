@@ -8,9 +8,18 @@ class EmployeeBase(BaseModel):
     name_of_employee: str
     date_of_birth: Optional[date] = None
     designation: str
+    phone_number: Optional[str] = None
     ia_registration_number: str
     date_of_registration: Optional[date] = None
+    certificate_issue_date: Optional[date] = None
     date_of_registration_expiry: Optional[date] = None
+    
+    # Expanded metadata
+    staff_code: Optional[str] = None
+    date_of_joining: Optional[date] = None
+    date_of_leaving: Optional[date] = None
+    employee_type: str = "non-advisory"
+    department_id: Optional[UUID] = None
 
     @field_validator("date_of_birth")
     @classmethod
@@ -30,7 +39,20 @@ class EmployeeRead(EmployeeBase):
     id: UUID
     ia_master_id: UUID
     certificate_path: Optional[str] = None
+    version_number: int = 1
+    department_name: Optional[str] = None
     created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# Department Schemas
+class DepartmentBase(BaseModel):
+    name: str
+
+class DepartmentCreate(DepartmentBase):
+    pass
+
+class DepartmentRead(DepartmentBase):
+    id: UUID
     model_config = ConfigDict(from_attributes=True)
 
 # IA Master Schemas
