@@ -24,7 +24,7 @@ from app.utils.encryption import decrypt_string
 
 logger = logging.getLogger("significia.deps")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"/api/v1/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"/api/v1/auth/swagger-login", auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_db() -> Generator:

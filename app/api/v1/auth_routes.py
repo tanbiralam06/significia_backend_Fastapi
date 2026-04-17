@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, Request, Body, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_current_user
 from app.schemas.auth_schema import UserRegisterRequest, UserLoginRequest, TokenResponse, UserResponse, RefreshTokenRequest
 from fastapi.security import OAuth2PasswordRequestForm
-from typing import Optional
 from app.services.auth_service import AuthService
 from app.models.user import User
 
@@ -19,20 +18,21 @@ def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
     return user
 
 @router.post("/login", response_model=TokenResponse)
-def login(
-    http_request: Request, 
-    db: Session = Depends(get_db),
-    login_data: Optional[UserLoginRequest] = Body(None),
-    form_data: Optional[OAuth2PasswordRequestForm] = Depends()
-):
-    # Determine which login method was used
-    if login_data:
-        request = login_data
-    elif form_data:
-        request = UserLoginRequest(email=form_data.username, password=form_data.password)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid login request format")
+def login(request: UserLoginRequest, http_request: Request, db: Session = Depends(get_db)):
+    """Standard JSON login for the Frontend."""
+    client_host = http_request.client.host if http_request.client else "127.0.0.1"
+    ip_address = "127.0.0.1" if client_host == "testclient" else client_host
+    user_agent = http_request.headers.get("user-agent", "")
+    return auth_service.authenticate_user(db, request, request_ip=ip_address, user_agent=user_agent)
 
+@router.post("/swagger-login", response_model=TokenResponse, include_in_schema=False)
+def swagger_login(
+    http_request: Request,
+    db: Session = Depends(get_db),
+    form_data: OAuth2PasswordRequestForm = Depends()
+):
+    """Dedicated Form Data login for Swagger UI Authorize button."""
+    request = UserLoginRequest(email=form_data.username, password=form_data.password)
     client_host = http_request.client.host if http_request.client else "127.0.0.1"
     ip_address = "127.0.0.1" if client_host == "testclient" else client_host
     user_agent = http_request.headers.get("user-agent", "")
