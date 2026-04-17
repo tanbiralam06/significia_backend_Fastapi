@@ -85,7 +85,7 @@ class AdminService:
             .outerjoin(StaffProfile, User.id == StaffProfile.user_id)
             .filter(
                 User.tenant_id == tenant_id,
-                User.role.in_(["owner", "partner", "ia_staff", "analyst", "staff"])
+                User.role.in_(["owner", "partner", "ia_staff", "research_analyst", "investment_advisor", "management", "staff"])
             )
             .all()
         )

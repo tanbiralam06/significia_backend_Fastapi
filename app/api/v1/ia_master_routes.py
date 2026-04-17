@@ -200,6 +200,30 @@ async def get_latest_ia(
     """Proxy Latest IA Info request to the Bridge."""
     return await bridge.get("/ia-master")
 
+@router.get("/departments", response_model=List[dict])
+async def list_departments(
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Department list request to the Bridge silo."""
+    return await bridge.get("/departments")
+
+@router.post("/departments", response_model=dict)
+async def create_department(
+    name: str = Form(...),
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Department creation request to the Bridge silo."""
+    # Using post_multipart because the Bridge expects Form data
+    return await bridge.post_multipart("/departments", data={"name": name})
+
+@router.delete("/departments/{dept_id}", response_model=dict)
+async def delete_department(
+    dept_id: str,
+    bridge: BridgeClient = Depends(get_bridge_client)
+):
+    """Proxy Department deletion request to the Bridge silo."""
+    return await bridge.delete(f"/departments/{dept_id}")
+
 @router.get("/employees", response_model=List[dict])
 async def list_ia_employees(
     bridge: BridgeClient = Depends(get_bridge_client)

@@ -52,13 +52,19 @@ class IAMaster(SiloBase):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist, onupdate=get_now_ist)
 
-    # Relationships
     employees: Mapped[List["EmployeeDetails"]] = relationship(
         "EmployeeDetails", back_populates="ia_master", cascade="all, delete-orphan"
     )
     contact_persons: Mapped[List["ContactPerson"]] = relationship(
         "ContactPerson", back_populates="ia_master", cascade="all, delete-orphan"
     )
+
+class Department(SiloBase):
+    __tablename__ = "departments"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    tenant_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True))
 
 class EmployeeDetails(SiloBase):
     __tablename__ = "employee_details"
@@ -68,10 +74,22 @@ class EmployeeDetails(SiloBase):
     name_of_employee: Mapped[str] = mapped_column(String(255), nullable=False)
     date_of_birth: Mapped[Date] = mapped_column(Date, nullable=False)
     designation: Mapped[str] = mapped_column(String(100))
+    phone_number: Mapped[Optional[str]] = mapped_column(String(20))
+    
+    # Expanded professional metadata
+    staff_code: Mapped[Optional[str]] = mapped_column(String(50))
+    date_of_joining: Mapped[Optional[Date]] = mapped_column(Date)
+    date_of_leaving: Mapped[Optional[Date]] = mapped_column(Date)
+    employee_type: Mapped[str] = mapped_column(String(50), default="non-advisory")
+    department_id: Mapped[Optional[uuid.UUID]] = mapped_column(ForeignKey("departments.id"))
+    
     ia_registration_number: Mapped[str] = mapped_column(String(100), nullable=False)
     date_of_registration: Mapped[Optional[Date]] = mapped_column(Date)
+    certificate_issue_date: Mapped[Optional[Date]] = mapped_column(Date)
     date_of_registration_expiry: Mapped[Optional[Date]] = mapped_column(Date)
     certificate_path: Mapped[Optional[str]] = mapped_column(String(512))
+    
+    version_number: Mapped[int] = mapped_column(default=1, server_default="1")
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=get_now_ist)
     

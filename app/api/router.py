@@ -5,7 +5,7 @@ from app.api.v1 import (
     client_routes, ia_master_routes,
     financial_analysis_routes, risk_profile_routes, asset_allocation_routes,
     bridge_routes, ia_auth_routes, billing_routes, public_routes, tenant_routes,
-    team_routes, email_routes, rectification_routes
+    team_routes, email_routes, rectification_routes, department_routes
 )
 
 api_router = APIRouter()
@@ -23,6 +23,7 @@ api_router.include_router(ia_auth_routes.router, prefix="/ia-auth", tags=["IA St
 
 # ── Team & User Management (Tenant Level) ───────────────────────────
 api_router.include_router(team_routes.router, prefix="/team", tags=["Team Management"])
+api_router.include_router(department_routes.router, prefix="/departments", tags=["Department Management"])
 
 # ── Super Admin ─────────────────────────────────────────────────────
 api_router.include_router(admin_routes.router, prefix="/admin", tags=["Admin"])

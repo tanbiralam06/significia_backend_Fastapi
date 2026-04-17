@@ -246,62 +246,54 @@ class IAPDFGenerator:
         if employees:
             pdf.ln(5)
             
-            # Helper to get name from multiple possible fields
+            # Helper to get name
             def get_person_name(p):
                 return p.get('name') or p.get('name_of_employee') or p.get('full_name') or "N/A"
 
-            # Categorize team members
-            partners = [e for e in employees if e.get('role') in ['partner', 'owner']]
-            other_staff = [e for e in employees if e.get('role') not in ['partner', 'owner']]
+            # 1. Map employees to departments
+            from collections import defaultdict
+            dept_map = defaultdict(list)
+            for emp in employees:
+                d_name = emp.get('department_name') or emp.get('department') or 'Unassigned'
+                dept_map[d_name].append(emp)
 
-            # 1. Partners / Key Personnel Section
-            if partners:
-                section_header("Partners / Key Personnel")
-                pdf.set_fill_color(240, 245, 255) # Light blue fill
-                pdf.set_font("helvetica", "B", 9)
-                pdf.set_text_color(0, 0, 0) # Solid black headers
-                pdf.cell(50, 10, "Name", 1, 0, 'C', fill=True)
-                pdf.cell(50, 10, "Designation", 1, 0, 'C', fill=True)
-                pdf.cell(40, 10, "IA Reg No", 1, 0, 'C', fill=True)
-                pdf.cell(50, 10, "Expiry Date", 1, 1, 'C', fill=True)
+            # 2. Render each department group
+            for dept_name, staff_list in dept_map.items():
+                section_header(f"Team: {dept_name}")
                 
-                pdf.set_font("helvetica", "", 9)
-                pdf.set_text_color(20, 20, 20) # Deep black for row data
-                for p in partners:
-                    name = str(get_person_name(p))[:25]
-                    designation = str(p.get('designation', 'Partner'))[:25]
-                    reg_no = str(p.get('ia_registration_number', 'N/A'))
-                    expiry = str(p.get('date_of_registration_expiry', 'N/A'))
-                    
-                    pdf.cell(50, 10, name, 1, 0, 'L')
-                    pdf.cell(50, 10, designation, 1, 0, 'L')
-                    pdf.cell(40, 10, reg_no, 1, 0, 'C')
-                    pdf.cell(50, 10, expiry, 1, 1, 'C')
-                pdf.ln(10)
-
-            # 2. Other Registered Professionals Section
-            if other_staff:
-                section_header("Registered Professionals (Employees)")
-                pdf.set_fill_color(248, 249, 250)
-                pdf.set_font("helvetica", "B", 9)
-                pdf.set_text_color(0, 0, 0) # Solid black headers
-                pdf.cell(50, 10, "Name", 1, 0, 'C', fill=True)
-                pdf.cell(50, 10, "Designation", 1, 0, 'C', fill=True)
-                pdf.cell(40, 10, "IA Reg No", 1, 0, 'C', fill=True)
-                pdf.cell(50, 10, "Expiry Date", 1, 1, 'C', fill=True)
+                # Table headers (Total Width: 190mm)
+                pdf.set_fill_color(240, 245, 255) # Light blue header
+                pdf.set_font("helvetica", "B", 8)
+                pdf.set_text_color(30, 30, 30)
                 
-                pdf.set_font("helvetica", "", 9)
-                pdf.set_text_color(20, 20, 20) # Deep black for row data
-                for emp in other_staff:
-                    name = str(get_person_name(emp))[:25]
-                    designation = str(emp.get('designation', 'Staff'))[:25]
-                    reg_no = str(emp.get('ia_registration_number', 'N/A'))
-                    expiry = str(emp.get('date_of_registration_expiry', 'N/A'))
+                pdf.cell(45, 10, " Name", 1, 0, 'L', fill=True)
+                pdf.cell(35, 10, " Designation (Type)", 1, 0, 'L', fill=True)
+                pdf.cell(25, 10, " Staff Code", 1, 0, 'C', fill=True)
+                pdf.cell(35, 10, " IA Reg No", 1, 0, 'C', fill=True)
+                pdf.cell(25, 10, " Expiry", 1, 0, 'C', fill=True)
+                pdf.cell(25, 10, " Joined", 1, 1, 'C', fill=True)
+                
+                pdf.set_font("helvetica", "", 8)
+                pdf.set_text_color(0, 0, 0)
+                
+                for emp in staff_list:
+                    # Formatting values
+                    name = str(get_person_name(emp))[:22]
+                    e_type = str(emp.get('employee_type', 'N/A')).split('-')[-1].capitalize()
+                    desig = f"{str(emp.get('designation', 'Staff'))[:15]} ({e_type})"
+                    s_code = str(emp.get('staff_code') or 'N/A')
+                    reg_no = str(emp.get('ia_registration_number') or 'N/A')
+                    expiry = str(emp.get('date_of_registration_expiry') or 'N/A').split('T')[0]
+                    joined = str(emp.get('date_of_joining') or 'N/A').split('T')[0]
                     
-                    pdf.cell(50, 10, name, 1, 0, 'L')
-                    pdf.cell(50, 10, designation, 1, 0, 'L')
-                    pdf.cell(40, 10, reg_no, 1, 0, 'C')
-                    pdf.cell(50, 10, expiry, 1, 1, 'C')
+                    pdf.cell(45, 9, f" {name}", 1, 0, 'L')
+                    pdf.cell(35, 9, f" {desig}", 1, 0, 'L')
+                    pdf.cell(25, 9, s_code, 1, 0, 'C')
+                    pdf.cell(35, 9, reg_no, 1, 0, 'C')
+                    pdf.cell(25, 9, expiry, 1, 0, 'C')
+                    pdf.cell(25, 9, joined, 1, 1, 'C')
+                
+                pdf.ln(8)
 
             # Add System Disclaimer at the bottom
             pdf.ln(10)
