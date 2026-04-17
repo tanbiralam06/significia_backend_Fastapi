@@ -309,8 +309,9 @@ class IAPDFGenerator:
             pdf.set_text_color(150, 150, 150)
             disclaimer = (
                 "This report is generated for internal record and reference purpose only. "
-                "Information contain in this report based on recorded data and is not intended for advisory or decision-making purposes. "
-                "All information is based on data provided and recorded by the investment advisor and has not been independently verified by the system"
+                "Information contained in this report is based on recorded data and is not intended for advisory or decision-making purposes. "
+                "All information is based on data provided and recorded by the investment advisor and has not been independently verified by the system. "
+                "The report is generated from system-recorded data and is reproducable based on stored information. "
             )
             pdf.multi_cell(0, 5, disclaimer, 0, 'C')
 
