@@ -11,6 +11,8 @@ class BaseReportPDF(FPDF):
         self.entity_name = kwargs.pop('entity_name', "")
         self.ia_reg_no = kwargs.pop('ia_reg_no', "")
         self.header_text = kwargs.pop('header_text', "Internal system report - not for client communication")
+        self.version = kwargs.pop('version', "")
+        self.last_updated = kwargs.pop('last_updated', "")
         super().__init__(*args, **kwargs)
         self.set_auto_page_break(auto=True, margin=15)
         self.alias_nb_pages()
@@ -20,8 +22,21 @@ class BaseReportPDF(FPDF):
         if self.page_no() > 1:
             self.set_font('helvetica', 'I', 8)
             self.set_text_color(150, 150, 150)
-            # Right-aligned disclaimer at the very top
-            self.cell(0, 5, self.header_text, 0, 1, 'R')
+            
+            # Left side: Version and Update Date
+            header_left = []
+            if self.version:
+                header_left.append(f"Version: {self.version}")
+            if self.last_updated:
+                header_left.append(f"Data Updated: {self.last_updated}")
+            
+            if header_left:
+                self.set_x(10)
+                self.cell(100, 5, " | ".join(header_left), 0, 0, 'L')
+            
+            # Right side disclaimer
+            self.set_x(100)
+            self.cell(100, 5, self.header_text, 0, 1, 'R')
             # Add a small buffer after the header
             self.ln(5)
 
@@ -51,7 +66,7 @@ class BaseReportPDF(FPDF):
 
 class IAPDFGenerator:
     @staticmethod
-    def render_ia_cover_page(pdf, ia_data: dict, logo_path: Optional[str] = None):
+    def render_ia_cover_page(pdf, ia_data: dict, logo_path: Optional[str] = None, last_updated_str: str = "N/A"):
         pdf.add_page()
         # Colors (Premium Navy and Silver/Grey)
         primary_navy = (0, 31, 63)
@@ -101,21 +116,45 @@ class IAPDFGenerator:
         pdf.set_font("helvetica", "I", 9)
         pdf.set_text_color(120, 120, 120)
         current_date = datetime.now().strftime('%d %B %Y')
-        pdf.cell(0, 6, f"Generated for Internal System Record on: {current_date}", ln=True, align="C")
+        
+        # Pull lifecycle info for the cover
+        version = ia_data.get('version_number', 1)
+        
+        pdf.cell(0, 6, f"Data Version: {version} | Last Modified: {last_updated_str}", ln=True, align="C")
+        pdf.cell(0, 6, f"Report Generated for Internal System Record on: {current_date}", ln=True, align="C")
         pdf.set_text_color(200, 0, 0) # Subtle warning color for "No External Use"
         pdf.cell(0, 6, "CONFIDENTIAL - INTERNAL SYSTEM RECORD - NOT FOR EXTERNAL USE", ln=True, align="C")
 
     @staticmethod
     def generate_ia_report(ia_data: dict, employees: List[dict], logo_path: Optional[str] = None) -> bytes:
+        # Extract version and formatted update time
+        version = ia_data.get('version_number', 1)
+        updated_at = ia_data.get('updated_at')
+        last_updated_str = "N/A"
+        
+        if updated_at:
+            try:
+                if isinstance(updated_at, str):
+                    # Handle potential 'Z' or offset strings
+                    clean_ts = updated_at.split('.')[0].replace('Z', '')
+                    dt = datetime.fromisoformat(clean_ts)
+                    last_updated_str = dt.strftime('%d %b %Y, %I:%M %p')
+                elif hasattr(updated_at, 'strftime'):
+                    last_updated_str = updated_at.strftime('%d %b %Y, %I:%M %p')
+            except Exception:
+                last_updated_str = str(updated_at)
+
         pdf = BaseReportPDF(
             advisor_name=ia_data.get('name_of_ia', ''),
             entity_name=ia_data.get('name_of_entity', ''),
             ia_reg_no=ia_data.get('ia_registration_number', ''),
-            header_text="Internal system record - not for external use"
+            header_text="Internal system record - not for external use",
+            version=str(version),
+            last_updated=last_updated_str
         )
         
         # 1. Render Premium Cover Page
-        IAPDFGenerator.render_ia_cover_page(pdf, ia_data, logo_path)
+        IAPDFGenerator.render_ia_cover_page(pdf, ia_data, logo_path, last_updated_str=last_updated_str)
         
         pdf.add_page()
         margin = 10
