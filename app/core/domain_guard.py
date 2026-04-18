@@ -40,6 +40,7 @@ SUPER_ADMIN_PREFIXES = [
 # Significia's own domains (Super Admin access)
 SIGNIFICIA_DOMAINS = [
     "app.significia.com",
+    "api.significia.com",
     "significia.com",
     "www.significia.com",
     "localhost",      # Dev mode
