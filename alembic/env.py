@@ -18,6 +18,9 @@ from app.models.tenant import Tenant
 from app.models.api_key import ApiKey
 from app.models.ia_master import IAMaster
 from app.models.client import ClientProfile
+from app.models.staff_profile import StaffProfile
+from app.models.admin_activity_log import AdminActivityLog
+from app.models.login_attempt import LoginAttempt
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
