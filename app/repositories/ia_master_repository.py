@@ -9,8 +9,6 @@ class IAMasterRepository:
     def create_contact_person(self, db: Session, contact_data: dict) -> ContactPerson:
         db_contact = ContactPerson(**contact_data)
         db.add(db_contact)
-        db.commit()
-        db.refresh(db_contact)
         return db_contact
     def get_by_id(self, db: Session, ia_id: uuid.UUID) -> Optional[IAMaster]:
         return db.query(IAMaster).filter(IAMaster.id == ia_id).first()
@@ -27,15 +25,11 @@ class IAMasterRepository:
     def create(self, db: Session, ia_data: dict) -> IAMaster:
         db_ia = IAMaster(**ia_data)
         db.add(db_ia)
-        db.commit()
-        db.refresh(db_ia)
         return db_ia
 
     def create_employee(self, db: Session, employee_data: dict) -> EmployeeDetails:
         db_employee = EmployeeDetails(**employee_data)
         db.add(db_employee)
-        db.commit()
-        db.refresh(db_employee)
         return db_employee
 
     def exists_by_reg_number(self, db: Session, reg_number: str) -> bool:

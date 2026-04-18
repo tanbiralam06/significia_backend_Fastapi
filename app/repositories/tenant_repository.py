@@ -26,6 +26,4 @@ class TenantRepository:
             **kwargs
         )
         db.add(db_tenant)
-        db.commit()
-        db.refresh(db_tenant)
         return db_tenant

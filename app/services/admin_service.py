@@ -65,6 +65,10 @@ class AdminService:
         # 5. The Root User (Owner) is intentionally NOT saved to the Master DB 'users' table anymore.
         # They will only exist natively inside the isolated Bridge Silo via the bridge integration flow.
         
+        db.commit()
+        db.refresh(tenant)
+        db.refresh(db_ia)
+        
         return {
             "id": None, # Decoupled from Master users table
             "email": request.email,
@@ -137,6 +141,8 @@ class AdminService:
         )
         db.add(new_profile)
         db.commit()
+        db.refresh(new_user)
+        db.refresh(new_profile)
         
         self.log_activity(db, admin, "CREATE_STAFF", "user", str(new_user.id), f"Created staff profile for {new_user.email}", ip_address)
         
