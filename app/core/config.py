@@ -6,6 +6,9 @@ import os
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Significia API"
     API_V1_STR: str = "/api/v1"
+    
+    # ── Bridge Versioning ──────────────────────────────────────
+    LATEST_BRIDGE_VERSION: str = "1.0.0"  # Update this when releasing a new Bridge Version
 
     # Docker/local defaults
     POSTGRES_SERVER: str = "postgres"

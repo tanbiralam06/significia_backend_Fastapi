@@ -225,6 +225,7 @@ def bridge_heartbeat(
             db=db,
             tenant=tenant,
             client_count=heartbeat.client_count,
+            version=heartbeat.version,
         )
         return result
     except ValueError as e:

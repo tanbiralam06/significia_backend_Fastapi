@@ -15,12 +15,15 @@ class BridgeRegisterResponse(BaseModel):
 class BridgeHeartbeat(BaseModel):
     tenant_id: str
     client_count: int
+    version: Optional[str] = "1.0.0"
 
 class BridgeHeartbeatResponse(BaseModel):
     acknowledged: bool
     current_seat_usage: int
     max_client_permit: int
     server_time_ist: str
+    latest_version: Optional[str] = None
+    update_available: bool = False
 
 class BridgeStatusResponse(BaseModel):
     tenant_id: str

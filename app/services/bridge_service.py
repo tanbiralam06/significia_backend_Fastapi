@@ -123,6 +123,7 @@ class BridgeService:
         db: Session,
         tenant: Tenant,
         client_count: int,
+        version: Optional[str] = None,
     ) -> dict:
         """Process heartbeat from the Bridge, update counts, and check billing compliance."""
         if not tenant.is_active:
@@ -154,13 +155,22 @@ class BridgeService:
 
             # Prepare IST timestamp for response/logging
             now_ist = to_ist(now_utc).strftime("%Y-%m-%d %H:%M:%S IST")
-            logger.info(f"💓 Heartbeat acknowledged for {tenant.name} at {now_ist} (Seats: {client_count})")
+            logger.info(f"💓 Heartbeat acknowledged for {tenant.name} at {now_ist} (Seats: {client_count}, Version: {version})")
+
+            from app.core.config import settings
+            
+            # Version negotiation logic
+            update_available = False
+            if version and settings.LATEST_BRIDGE_VERSION:
+                update_available = (version != settings.LATEST_BRIDGE_VERSION)
 
             return {
                 "acknowledged": True,
                 "current_seat_usage": internal_seat_count,
                 "max_client_permit": tenant.max_client_permit,
-                "server_time_ist": now_ist
+                "server_time_ist": now_ist,
+                "latest_version": settings.LATEST_BRIDGE_VERSION,
+                "update_available": update_available
             }
         except Exception as e:
             db.rollback()
