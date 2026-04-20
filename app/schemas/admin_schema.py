@@ -55,7 +55,7 @@ class ClientProvisionRequest(BaseModel):
     max_client_permit: int = 5
 
 class ClientProvisionResponse(BaseModel):
-    id: str
+    id: Optional[str] = None
     email: str
     tenant_id: str
     tenant_name: str
