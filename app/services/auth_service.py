@@ -39,7 +39,10 @@ class AuthService:
             role="owner",
             status="active"
         )
-        return self.user_repo.create(db, user)
+        created_user = self.user_repo.create(db, user)
+        db.commit()
+        db.refresh(created_user)
+        return created_user
 
     def authenticate_user(self, db: Session, request: UserLoginRequest, request_ip: str, user_agent: str) -> TokenResponse:
         user = self.user_repo.get_by_email(db, request.email)
@@ -103,6 +106,8 @@ class AuthService:
         user.refresh_token = hashlib.sha256(refresh_token.encode()).hexdigest()
         
         self.user_repo.update(db, user)
+        db.commit()
+        db.refresh(user)
 
         tenant = self.tenant_repo.get_by_id(db, user.tenant_id)
         subdomain = tenant.subdomain if tenant else None
