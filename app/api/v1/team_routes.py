@@ -169,20 +169,31 @@ async def update_team_member(
     if request_data.change_reason_text: bridge_payload["change_reason_text"] = request_data.change_reason_text
     
     if bridge_payload:
-        await bridge.put(f"/employees/{str(user_id)}", json=bridge_payload)
+        await bridge.put(f"/employees/{str(user_id)}", data=bridge_payload)
 
     # Return a mocked StaffUserOut to satisfy the frontend immediately
+    from datetime import datetime
+    try:
+        bridge_staff = await bridge.get("/employees")
+        emp = next((e for e in bridge_staff if str(e.get("id")) == str(user_id)), {})
+    except Exception:
+        emp = {}
+
+    staff_email = emp.get("email") or (request_data.email if request_data.email else None)
+    if not staff_email:
+        raise HTTPException(status_code=404, detail="Could not resolve staff email address.")
+
     return {
         "id": str(user_id),
-        "email": request_data.email or "updated@silo",
-        "role": request_data.role or "staff",
-        "status": request_data.status or "active",
-        "full_name": request_data.full_name or "Updated Staff",
-        "phone_number": "N/A",
-        "designation": "Staff",
+        "email": staff_email,
+        "role": emp.get("role") or request_data.role or "staff",
+        "status": "active" if emp.get("is_active", True) else "inactive",
+        "full_name": emp.get("name") or request_data.full_name or "Updated Staff",
+        "phone_number": emp.get("phone_number") or "N/A",
+        "designation": emp.get("designation") or "Staff",
         "address": None,
         "last_login_at": None,
-        "created_at": None
+        "created_at": emp.get("created_at") or datetime.utcnow()
     }
 
 @router.delete("/{user_id}", status_code=204)

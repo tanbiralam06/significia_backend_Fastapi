@@ -87,6 +87,7 @@ class StaffUserCreate(StaffUserBase):
     date_of_registration_expiry: Optional[date_type] = None
 
 class StaffUserUpdate(BaseModel):
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     designation: Optional[str] = None
