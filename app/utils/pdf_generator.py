@@ -254,7 +254,9 @@ class IAPDFGenerator:
             from collections import defaultdict
             dept_map = defaultdict(list)
             for emp in employees:
-                d_name = emp.get('department_name') or emp.get('department') or 'Unassigned'
+                d_name = emp.get('department_name') or emp.get('department')
+                if not d_name or str(d_name).strip().lower() in ('unassigned', 'none', ''):
+                    d_name = 'Administration'
                 dept_map[d_name].append(emp)
 
             # 2. Render each department group
@@ -279,12 +281,31 @@ class IAPDFGenerator:
                 for emp in staff_list:
                     # Formatting values
                     name = str(get_person_name(emp))[:22]
-                    e_type = str(emp.get('employee_type', 'N/A')).split('-')[-1].capitalize()
-                    desig = f"{str(emp.get('designation', 'Staff'))[:15]} ({e_type})"
-                    s_code = str(emp.get('staff_code') or 'N/A')
-                    reg_no = str(emp.get('ia_registration_number') or 'N/A')
-                    expiry = str(emp.get('date_of_registration_expiry') or 'N/A').split('T')[0]
-                    joined = str(emp.get('date_of_joining') or 'N/A').split('T')[0]
+                    raw_desig = emp.get('designation')
+                    raw_type = emp.get('employee_type')
+                    
+                    if not raw_desig or str(raw_desig).strip().lower() in ('none', ''):
+                        desig_str = "Principle Officer"
+                    else:
+                        desig_str = str(raw_desig)[:15]
+                        
+                    if not raw_type or str(raw_type).strip().lower() in ('none', ''):
+                        e_type = "Owner"
+                    else:
+                        e_type = str(raw_type).split('-')[-1].capitalize()
+                        
+                    desig = f"{desig_str} ({e_type})"
+                    s_code = str(emp.get('staff_code') or '-')
+                    if s_code.strip().lower() in ('none', 'n/a', ''): s_code = '-'
+                    
+                    reg_no = str(emp.get('ia_registration_number') or '-')
+                    if reg_no.strip().lower() in ('none', 'n/a', ''): reg_no = '-'
+                    
+                    raw_expiry = emp.get('date_of_registration_expiry')
+                    expiry = str(raw_expiry).split('T')[0] if raw_expiry and str(raw_expiry).strip().lower() not in ('none', 'n/a', '') else '-'
+                    
+                    raw_joined = emp.get('date_of_joining')
+                    joined = str(raw_joined).split('T')[0] if raw_joined and str(raw_joined).strip().lower() not in ('none', 'n/a', '') else '-'
                     
                     pdf.cell(45, 9, f" {name}", 1, 0, 'L')
                     pdf.cell(35, 9, f" {desig}", 1, 0, 'L')
