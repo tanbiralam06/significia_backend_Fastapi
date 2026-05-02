@@ -438,6 +438,17 @@ class FinancialReportGenerator:
             if v > 0:
                 ast_data.append([label, format_number(v)])
                 total_ast += v
+
+        # Custom "Other" assets
+        asset_others = profile.assets.get('others', [])
+        if isinstance(asset_others, list):
+            for other in asset_others:
+                amt = other.get('amount', 0) if isinstance(other, dict) else getattr(other, 'amount', 0)
+                if amt > 0:
+                    label = other.get('label', 'Other Asset') if isinstance(other, dict) else getattr(other, 'label', 'Other Asset')
+                    ast_data.append([label, format_number(amt)])
+                    total_ast += amt
+
         ast_data.append(['TOTAL ASSETS', format_number(total_ast)])
         t = Table(ast_data, colWidths=[300, 200])
         t.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,0), colors.grey), ('GRID', (0,0), (-1,-1), 1, colors.black)]))
@@ -1169,6 +1180,14 @@ class FinancialReportGenerator:
             if v > 0:
                 ast_data.append([label, format_currency(v)])
                 total_ast += v
+        asset_others = profile.assets.get('others', [])
+        if isinstance(asset_others, list):
+            for other in asset_others:
+                amt = other.get('amount', 0) if isinstance(other, dict) else getattr(other, 'amount', 0)
+                if amt > 0:
+                    label = other.get('label', 'Other Asset') if isinstance(other, dict) else getattr(other, 'label', 'Other Asset')
+                    ast_data.append([label, format_currency(amt)])
+                    total_ast += amt
         ast_data.append(["TOTAL ASSETS", format_currency(total_ast)])
         add_table("1.6 Assets", ast_data)
 

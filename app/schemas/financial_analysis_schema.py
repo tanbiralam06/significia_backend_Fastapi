@@ -39,16 +39,23 @@ class ExpensesInput(BaseModel):
         ])
 
 
+class OtherAsset(BaseModel):
+    label: str
+    amount: Optional[float] = 0.0
+
+
 class AssetsInput(BaseModel):
-    """4 asset categories from finplan.py."""
+    """4 asset categories from finplan.py + dynamic others."""
     land: Optional[float] = 0.0        # Land & Building
     inv: Optional[float] = 0.0         # Investments
     cash: Optional[float] = 0.0        # Cash & Bank
     retirement: Optional[float] = 0.0  # Retirement savings
+    others: List[OtherAsset] = []
 
     @property
     def total(self) -> float:
-        return sum([self.land, self.inv, self.cash, self.retirement])
+        others_total = sum([o.amount for o in self.others])
+        return sum([self.land, self.inv, self.cash, self.retirement]) + others_total
 
 
 class OtherLiability(BaseModel):
