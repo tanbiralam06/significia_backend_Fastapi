@@ -19,28 +19,45 @@ async def resolve_logo_to_local_path(db_path: Optional[str], db: Session) -> Opt
 
     # 1. Full URL (e.g. from a cloud provider or external link)
     if db_path.startswith(("http://", "https://")):
+        # Standardize 0.0.0.0 to 127.0.0.1 for local dev immediately
         if "0.0.0.0" in db_path:
             db_path = db_path.replace("0.0.0.0", "127.0.0.1")
-        try:
-            with open("debug_logo.log", "a") as f:
-                f.write(f"DEBUG: Attempting to download from URL: {db_path}\n")
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(db_path)
-                if resp.status_code == 200:
-                    ext = os.path.splitext(db_path.split('?')[0])[1] or '.png'
-                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
-                    tmp.write(resp.content)
-                    tmp.close()
-                    with open("debug_logo.log", "a") as f:
-                        f.write(f"DEBUG: Downloaded to temp file: {tmp.name}\n")
-                    return tmp.name
-                else:
-                    with open("debug_logo.log", "a") as f:
-                        f.write(f"DEBUG: Download failed with status {resp.status_code}\n")
-        except Exception as e:
-            with open("debug_logo.log", "a") as f:
-                f.write(f"DEBUG: Failed to download logo from URL {db_path}: {e}\n")
-            return None
+
+        urls_to_try = [db_path]
+        
+        # If the URL looks like a public IP/domain (not localhost), add an internal fallback
+        if "127.0.0.1" not in db_path and "localhost" not in db_path:
+            from urllib.parse import urlparse
+            parsed = urlparse(db_path)
+            # Create a localhost version of the same URL (keeping the port)
+            fallback_netloc = f"127.0.0.1:{parsed.port}" if parsed.port else "127.0.0.1"
+            fallback_url = parsed._replace(netloc=fallback_netloc).geturl()
+            urls_to_try.append(fallback_url)
+
+        for url in urls_to_try:
+            try:
+                with open("debug_logo.log", "a") as f:
+                    f.write(f"DEBUG: Attempting to download from URL: {url}\n")
+                
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(url)
+                    if resp.status_code == 200:
+                        ext = os.path.splitext(url.split('?')[0])[1] or '.png'
+                        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                        tmp.write(resp.content)
+                        tmp.close()
+                        with open("debug_logo.log", "a") as f:
+                            f.write(f"DEBUG: Successfully downloaded to: {tmp.name}\n")
+                        return tmp.name
+                    else:
+                        with open("debug_logo.log", "a") as f:
+                            f.write(f"DEBUG: Download failed from {url} with status {resp.status_code}\n")
+            except Exception as e:
+                with open("debug_logo.log", "a") as f:
+                    f.write(f"DEBUG: Connection failed for {url}: {e}\n")
+                continue # Try next URL in list (the fallback)
+
+        return None
 
     # 2. Local Storage Path
     else:
